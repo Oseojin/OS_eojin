@@ -1,23 +1,13 @@
 /*
  * Minimal C Kernel
- * 기능: 비디오 메모리에 직접 접근하여 화면에 문자열 출력
+ * 기능: 화면 출력 및 하드웨어 초기화 진입점
  */
 
-// VGA 텍스트 모드 메모리 주소 (컬러 모니터 기준)
-#define VIDEO_MEMORY 0xB8000
-// 화면 너비/높이
-#define MAX_ROWS 25
-#define MAX_COLS 80
-
-// 속성 바이트: 흰색 글자(0x0F) on 검은 배경(0x00)
-#define WHITE_ON_BLACK 0x0f
+#include "kernel.h" // 헤더 파일 포함
 
 // 비디오 메모리에 문자를 출력하는 저수준 함수
 void print_char(char character, int col, int row, char attribute_byte) {
-    // 비디오 메모리는 '문자' + '속성'의 쌍으로 이루어져 있음
     unsigned char *vidmem = (unsigned char *) VIDEO_MEMORY;
-
-    // 2바이트씩 건너뛰어야 하므로 오프셋 계산 (2 * (row * 80 + col))
     int offset = (row * MAX_COLS + col) * 2;
 
     vidmem[offset] = character;
@@ -35,11 +25,17 @@ void print_string(char* message, int row) {
 
 // 커널의 진입점 (kernel_entry.asm에서 호출됨)
 void main() {
-    // 화면 첫 번째 줄에 메시지 출력
     print_string("Welcome to My Operating System!", 0);
-    
-    // 화면 두 번째 줄에 메시지 출력
-    print_string("Running in 32-bit Protected Mode", 1);
+    print_string("Initializing Drivers...", 1);
 
-    // C 코드 끝. 리턴하면 kernel_entry.asm의 jmp $로 돌아감.
+    // IDT 설정 및 인터럽트 활성화 (drivers.c에 정의됨)
+    init_drivers();
+
+    print_string("Keyboard Enabled. Type something!", 2);
+
+    // CPU가 종료되지 않도록 무한 루프
+    // (이 루프가 도는 동안 키보드를 누르면 인터럽트가 발생해 keyboard_handler가 실행됨)
+    while(1) {
+        __asm__("hlt"); // CPU를 쉬게 함 (전력 소모 감소)
+    }
 }
