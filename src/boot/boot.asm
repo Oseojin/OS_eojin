@@ -152,6 +152,7 @@ BEGIN_PM:
     mov byte [ebx], 'P'             ; 'P' 문자
     mov byte [ebx+1], 0x0f          ; 흰색 글자, 검은 배경
 
+    call 0x1000                     ; 커널 코드가 로드된 주소로 점프
     jmp $
 
 ; 모든 메모리는 이 위에서 할당하기!
