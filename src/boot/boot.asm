@@ -11,7 +11,16 @@ start:
 
     mov si, msg
     call print_string
-    jmp $
+    
+    cli                     ; 16비트(리얼모드) 인터럽트 비우기(끄기)
+    lgdt [gdt_descriptor]   ; GDT 로드
+
+    mov eax, cr0
+    or eax, 0x1             ; CR0 레지스터의 PE 비트(첫 비트 켜기)
+    mov cr0, eax
+
+    jmp CODE_SEG:init_pm    ; Far Jump (CS 업데이트 & 파이프라인 플러시)
+
 
 print_string:
     mov ah, 0x0e
@@ -84,6 +93,30 @@ gdt_descriptor:
 ; 상수 정의
 CODE_SEG equ gdt_code - gdt_start
 DATA_SEG equ gdt_data - gdt_start
+
+[BITS 32]
+init_pm:
+    ; 세그먼트 레지터스 DATA_SEG로 초기화
+    mov ax, DATA_SEG
+    mov ds, ax
+    mov ss, ax
+    mov es, ax
+    mov fs, ax                      ; 32bit CPU에서 추가된 사용처가 정해지지 않은 영역
+    mov gs, AX                      ; 32bit CPU에서 추가된 사용처가 정해지지 않은 영역
+
+    ; 스택 포인터 업데이트
+    mov ebp, 0x90000
+    mov esp, ebp
+
+    call BEGIN_PM
+
+BEGIN_PM:
+    ; 성공 확인 (비디오 메모리에 글자 찍기)
+    mov ebx, 0xb8000                ; VGA 텍스트 메모리 주소
+    mov byte [ebx], 'P'             ; 'P' 문자
+    mov byte [ebx+1], 0x0f          ; 흰색 글자, 검은 배경
+
+    jmp $
 
 ; 모든 메모리는 이 위에서 할당하기!
 ; 부트로더 크기 512 바이트로 설정 (0으로 초기화)
