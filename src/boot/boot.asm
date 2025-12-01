@@ -9,9 +9,18 @@ start:
     mov ss, ax          ; SS = 0, Stack Segment: 스택 위치
     mov sp, 0x7c00      ; SP = 0x7c00, Stack Pointer: 스택 포인터, 부트로더 아래쪽
 
+    mov [BOOT_DRIVE], dl    ; BIOS가 넘겨준 드라이브 번호 저장
+
     mov si, msg
     call print_string
+
+    ; 커널 로드 (섹터 2부터 읽어서 0x1000에 저장)
+    mov bx, 0x1000          ; ES:BX = 0x0000:0x1000 (저장할 주소)
+    mov dh, 2               ; 읽을 섹터 수
+    mov dl, [BOOT_DRIVE]
+    call disk_load
     
+    ; 보호모드 전환
     cli                     ; 16비트(리얼모드) 인터럽트 비우기(끄기)
     lgdt [gdt_descriptor]   ; GDT 로드
 
@@ -36,6 +45,33 @@ print_string:
 .done:
     ret
 
+disk_load:
+    push dx         ; 개수 저장
+
+    mov ah, 0x02    ; BIOS 섹터 읽기 함수
+    mov al, dh      ; DH 섹터 읽기
+    mov ch, 0x00    ; 실린더 0
+    mov dh, 0x00    ; 헤드 0
+    mov cl, 0x02    ; 섹터 2부터 시작
+
+    ; DL은 BIOS가 부팅 시 자동 설정함
+    ; BX는 호출하는 쪽에서 설정
+    int 0x13        ; BIOS 인터럽트
+
+    jc disk_error   ; Carry Flag가 켜지면 에러
+
+    pop dx          ; 원래 요청 개수 복구
+    cmp dh, al      ; 실제로 읽은 개수(AL)과 요청 개수(DH) 비교
+    jne disk_error  ; 다르면 에러
+    ret
+
+disk_error:
+    mov si, DISK_ERROR_MSG
+    call print_string
+    jmp $
+
+BOOT_DRIVE db 0     ; 드라이브 번호 저장 변수
+DISK_ERROR_MSG db 'Disk read error!', 0
 ; 부팅 메시지 저장
 msg db 'Hello, OS_eojin!', 0
 
