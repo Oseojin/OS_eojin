@@ -16,7 +16,7 @@ start:
 
     ; 커널 로드 (섹터 2부터 읽어서 0x1000에 저장)
     mov bx, 0x1000          ; ES:BX = 0x0000:0x1000 (저장할 주소)
-    mov dh, 2               ; 읽을 섹터 수
+    mov dh, 20              ; 읽을 섹터 수
     mov dl, [BOOT_DRIVE]
     call disk_load
     

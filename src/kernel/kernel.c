@@ -1,9 +1,19 @@
 volatile char*  video_memory = (volatile char*)0xb8000;
 
-void main()
+void    print_string(const char* str, int offset)
 {
-    // 화면 왼쪽 상단에 'X' 출력
-    *video_memory = 'X';
-    // 속성 바이트 (흰색 글자 / 검은 배경)
-    *(video_memory + 1) = 0x0f;
+    volatile char*  ptr = video_memory + offset * 2;
+    int             i = 0;
+    while (str[i] != 0)
+    {
+        *ptr = str[i];
+        *(ptr + 1) = 0x0f;
+        ptr += 2;
+        i++;
+    }
+}
+
+void    main()
+{
+    print_string("Hello from C Kernel!", 1);
 }
