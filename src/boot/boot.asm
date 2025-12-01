@@ -3,9 +3,11 @@
 
 start:
     ; 세그먼트 초기화
-    xor ax, ax
-    mov ds, ax
-    mov es, ax 
+    xor ax, ax ; AX = 0
+    mov ds, ax ; DS = 0, Data Segment: 데이터 위치
+    mov es, ax ; ES = 0, Extra Segment: 추가 데이터 위치
+    mov ss, ax ; SS = 0, Stack Segment: 스택 위치
+    mov sp, 0x7c00 ; SP = 0x7c00, Stack Pointer: 스택 포인터, 부트로더 아래쪽
 
     mov si, msg
     call print_string
