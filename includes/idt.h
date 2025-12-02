@@ -22,8 +22,9 @@ typedef struct
 
 // 총 256개 인터럽트 게이트
 #define IDT_ENTRIES 256
-idt_gate_t      idt[IDT_ENTRIES];
-idt_register_t  idt_reg;
+
+extern idt_gate_t      idt[IDT_ENTRIES];
+extern idt_register_t  idt_reg;
 
 // 함수 선언
 void    set_idt_gate(int n, uint32_t handler);
