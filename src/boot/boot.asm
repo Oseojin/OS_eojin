@@ -21,13 +21,13 @@ start:
     ; Stage 2 (loader.bin) 로딩
     ; 위치: 0x7e00 (boot 섹터 바로 뒤)
     ; 섹터: 2번부터
-    ; 크기: 50섹터 (약 25KB)ㄴ
+    ; 크기: 50섹터 (약 25KB)
 
     mov ax, 0x0
     mov es, ax
     mov bx, 0x7e00           ; ES:BX = 0x0000:0x7e00
 
-    mov dh, 50              ; 읽을 섹터 수
+    mov dh, 50               ; 읽을 섹터 수
     mov dl, [BOOT_DRIVE]
     call disk_load
 

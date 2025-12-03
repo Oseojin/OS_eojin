@@ -17,8 +17,7 @@ check_cpuid:
     ret
 
 .no_cpuid:
-    mov esi, msg_no_cpuid
-    call print_string
+    mov dword [0xb8000], 0x4f314f45     ; "E1"
     jmp $
 
 ; Long Mode 지원 여부 확인
@@ -35,9 +34,5 @@ check_long_mode:
     ret
 
 .no_long_mode:
-    mov esi, msg_no_long_mode
-    call print_string
+    mov dword [0xb8000], 0x4f324f45     ; "E2"
     jmp $
-
-msg_no_cpuid db "Error: CPUID not supported.", 0
-msg_no_long_mode db "Error: Long Mode not supported.", 0

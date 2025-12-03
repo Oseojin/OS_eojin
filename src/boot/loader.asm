@@ -2,62 +2,57 @@
 [ORG 0x7e00]
 
 stage2_start:
-    mov si, msg_stage2
-    call print_string
-
-    ; 커널 로딩
-    mov ax, 0x1000
-    mov es, ax
-    xor bx, bx                  ; 0x10000에 커널 로딩
-
-    mov dh, 20                  ; 커널 크기만큼
-    mov dl, [BOOT_DRIVE_2]      ; Stage 1에서 드라이브 번호를 넘겨줘야 함.
-    ; Stage 1에서 DL 레지스터 보존해서 넘겨주거나 변수에 저장해야함.
-
-    ; 32비트 보호 모드 전환
     cli
+    ; 세그먼트 초기화
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov sp, 0x7e00
+
+    ; 비디오 메모리에 직접 'S' 찍기
+    mov ax, 0xb800
+    mov es, ax
+    mov byte [es:0], 'S'
+    mov byte [es:1], 0x0f
+
+    ; A20 라인 활성화 (Fast A20 방식)
+    in al, 0x92
+    or al, 2
+    out 0x92, al
+
+    ; GDT 주소 계산 및 수정
+    xor eax, eax
+    mov ax, ds
+    shl eax, 4
+    add eax, gdt_start
+    mov [gdt_descriptor + 2], eax
+    
+    ; GDT 로드
     lgdt [gdt_descriptor]
+
+    ; CR0 설정
     mov eax, cr0
     or eax, 0x1
     mov cr0, eax
-    jmp CODE_SEG:init_pm
 
-; 유틸리티 (16비트)
-print_string:
-    mov ah, 0x0e
-.loop:
-    lodsb
-    cmp al, 0
-    je .done
-    int 0x10
-    jmp .loop
-.done:
-    ret
+    ; 점프
+    jmp dword 0x08:init_pm
 
-msg_stage2 db "Stage 2 Loaded.", 13, 10, 0
-BOOT_DRIVE_2 db 0
+align 4
 
 ; GDT
 gdt_start:
-gdt_null:
-    dd 0
-    dd 0
+    dd 0, 0
 gdt_code:
-    dw 0xffff
-    dw 0x0
-    db 0x0
-    db 10011010b
-    db 11001111b
-    db 0x0
+    dw 0xffff, 0x0000
+    db 0x00, 0x9a, 0xcf, 0x00   ; Code (Base = 0, Limit = 4GB)
 gdt_data:
-    dw 0xffff
-    dw 0x0
-    db 0x0
-    db 10010010b
-    db 11001111b
-    db 0x0
+    dw 0xffff, 0x0000
+    db 0x0, 0x92, 0xcf, 0x00    ; Data
 gdt_end:
 
+align 4
 gdt_descriptor:
     dw gdt_end - gdt_start - 1
     dd gdt_start
@@ -78,7 +73,19 @@ gdt64_end:
 
 gdt64_descriptor:
     dw gdt64_end - gdt64_start - 1
-    dq gdt64_start
+    dd gdt64_start
+
+; 유틸리티 (16비트)
+print_string:
+    mov ah, 0x0e
+.loop:
+    lodsb
+    cmp al, 0
+    je .done
+    int 0x10
+    jmp .loop
+.done:
+    ret
 
 ; 32-bit 보호 모드
 [BITS 32]
@@ -89,6 +96,11 @@ init_pm:
     mov es, ax
     mov fs, ax
     mov gs, ax
+
+    ; 디버깅 코드
+    mov edi, 0xb8000
+    mov byte [edi], 'P'
+    mov byte [edi+1], 0x0f
 
     call check_cpuid
     call check_long_mode
@@ -109,6 +121,11 @@ init_lm:
     mov ss, ax
     mov rsp, 0x90000
 
+    ; 디버깅 L
+    mov rax, 0xb8000
+    mov byte [rax], 'L'
+    mov byte [rax+1], 0x2f
+
     ; 커널 위치
     ; Stage 1에서 50섹터를 읽었으므로 0x7e00 바로 뒤쪽에 커널이 붙어있음
     ; 하지만 Loader 크기가 가변적이라 커널 위치 찾기가 힘들다.
@@ -119,7 +136,6 @@ init_lm:
 
     mov rax, 0x8600     ; 커널 예상 위치
     call rax
-    jmp $
 
 %include "src/boot/cpuid.asm"
 %include "src/boot/long_mode_init.asm"

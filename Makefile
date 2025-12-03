@@ -21,7 +21,7 @@ all: $(BUILD_DIR)/os-image.bin
 
 $(BUILD_DIR)/os-image.bin: $(BUILD_DIR)/boot.bin $(BUILD_DIR)/loader.bin $(BUILD_DIR)/kernel.bin
 	cat $^ > $@
-	truncate -s 20480 $@
+	truncate -s 32768 $@
 
 $(BUILD_DIR)/boot.bin: $(SRC_BOOT)/boot.asm
 	nasm -f bin $< -o $@
@@ -30,7 +30,7 @@ $(BUILD_DIR)/loader.bin: $(SRC_BOOT)/loader.asm
 	nasm -f bin $< -o $@
 
 $(BUILD_DIR)/kernel.bin: $(BUILD_DIR)/kernel_entry.o $(KERNEL_OBJS) $(DRIVER_OBJS) $(ASM_OBJS)
-	ld -m elf_x86_64 -o $@ -Ttext 0x1000 $(BUILD_DIR)/kernel_entry.o $(KERNEL_OBJS) $(DRIVER_OBJS) $(ASM_OBJS) --oformat binary
+	ld -m elf_x86_64 -o $@ -Ttext 0x8600 $(BUILD_DIR)/kernel_entry.o $(KERNEL_OBJS) $(DRIVER_OBJS) $(ASM_OBJS) --oformat binary
 
 $(BUILD_DIR)/kernel_entry.o: $(SRC_KERNEL)/kernel_entry.asm
 	nasm -f elf64 $< -o $@

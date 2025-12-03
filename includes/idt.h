@@ -11,7 +11,7 @@ typedef struct
     uint8_t     ist;            // 인터럽트 스택 테이블 (0)
     uint8_t     flags;          // 타입 및 속성 (P, DPL, Type)
     uint16_t    mid_offset;     // 16-31 비트
-    uint16_t    high_offset;    // 32-63 비트
+    uint32_t    high_offset;    // 32-63 비트
     uint32_t    reserved;       // 0
 } __attribute__((packed))   idt_gate_t;
 

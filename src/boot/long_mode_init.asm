@@ -1,11 +1,12 @@
 [BITS 32]
 
 setup_paging:
+    cld                     ; 방향을 정방향으로 설정
     ; 메모리 초기화 (0x1000 ~ 0x4000 영역을 0으로 채우기)
     ; 0x1000~0x3fff까지 페이징 테이블로 사용
     mov edi, 0x1000
     xor eax, eax
-    mov ecx, 4096 * 3       ; 3개 테이블 (PML4, PDPT, PD) 크기만큼
+    mov ecx, 1024 * 3       ; 3개 테이블 (PML4, PDPT, PD) 크기만큼
     rep stosd               ; dword(4byte) 단위로 0 채우기
 
     ; PML4 테이블 설정 (0x1000)
