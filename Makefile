@@ -19,11 +19,14 @@ rerun: clean $(BUILD_DIR)/os-image.bin
 
 all: $(BUILD_DIR)/os-image.bin
 
-$(BUILD_DIR)/os-image.bin: $(BUILD_DIR)/boot.bin $(BUILD_DIR)/kernel.bin
+$(BUILD_DIR)/os-image.bin: $(BUILD_DIR)/boot.bin $(BUILD_DIR)/loader.bin $(BUILD_DIR)/kernel.bin
 	cat $^ > $@
 	truncate -s 20480 $@
 
 $(BUILD_DIR)/boot.bin: $(SRC_BOOT)/boot.asm
+	nasm -f bin $< -o $@
+
+$(BUILD_DIR)/loader.bin: $(SRC_BOOT)/loader.asm
 	nasm -f bin $< -o $@
 
 $(BUILD_DIR)/kernel.bin: $(BUILD_DIR)/kernel_entry.o $(KERNEL_OBJS) $(DRIVER_OBJS) $(ASM_OBJS)
