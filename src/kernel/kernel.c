@@ -15,14 +15,18 @@ extern void     pic_remap();
 // screen.c
 extern void     kprint(char* message);
 // interrupt.asm
+extern void     irq0();
 extern void     irq1();
+// timer.c
+extern void     init_timer(uint32_t freq);
 
 void    main()
 {
     kprint("Kernel loaded.\n");
 
     set_idt_gate(0, (uint32_t)isr0);    // ISR 0번(Divide by Zero) 등록
-    set_idt_gate(33, (uint32_t)irq1);   // 33번 (IRQ 1) 등록
+    set_idt_gate(32, (uint32_t)irq0);   // 32번 (IRQ 0) 등록, Timer
+    set_idt_gate(33, (uint32_t)irq1);   // 33번 (IRQ 1) 등록, Keyboard
 
     // IDT 로드
     set_idt();
@@ -39,14 +43,18 @@ void    main()
 
     kprint("init & remap\n");
 
+    // 타이머 인터럽트(IRQ 0) 마스크 해제
     // 키보드 인터럽트(IRQ 1) 마스크 해제
-    // 0xfd = 1111 1101 (1번째 비트만 0으로 끄기 -> 허용)
-    outb(0x21, 0xfd);
+    // 1111 1100 = 0xfc
+    outb(0x21, 0xfc);
 
     // CPU 인터럽트 허용 (STI)
     __asm__ volatile("sti");
 
     kprint("Waiting for Keyboard...\n");
+
+    // 타이머 인터럽트
+    init_timer(50);
 
     while(1);
 }

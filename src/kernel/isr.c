@@ -7,6 +7,8 @@ extern void outb(uint16_t port, uint8_t data);
 extern void keyboard_handler();
 // screen.c
 extern void kprint(char* message);
+// timer.c
+extern void timer_handler();
 
 // 스택에 저장된 레지스터 상태
 typedef struct
@@ -19,8 +21,14 @@ typedef struct
 
 void    isr_handler(register_t r)
 {
+    // 타이머 입력
+    if (r.int_no == 32)
+    {
+        timer_handler();
+        outb(0x20, 0x20); // EOI
+    }
     // 키보드 입력
-    if (r.int_no == 33)
+    else if (r.int_no == 33)
     {
         keyboard_handler();
         // PIC에게 데이터를 받았다는 신호(EOI)를 보내야 다음 키 입력이 들어옴

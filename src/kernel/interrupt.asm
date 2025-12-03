@@ -2,12 +2,20 @@
 [EXTERN isr_handler]    ; C 코드에 작성할 공용 핸들러 함수
 
 global isr0
+global irq0
 global irq1
 
 isr0:
     cli                 ; 인터럽트 중복 발생 방지
     push byte 0         ; 에러 코드가 없는 인터럽트를 위한 더미 데이터
     push byte 0         ; 인터럽트 번호 (0번)
+    jmp isr_common_stub
+
+; IRQ 0 (Timer) Handler
+irq0:
+    cli
+    push byte 0
+    push byte 32
     jmp isr_common_stub
 
 ; IRQ 1 (Keyboard) Handler
