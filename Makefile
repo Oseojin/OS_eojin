@@ -27,19 +27,19 @@ $(BUILD_DIR)/boot.bin: $(SRC_BOOT)/boot.asm
 	nasm -f bin $< -o $@
 
 $(BUILD_DIR)/kernel.bin: $(BUILD_DIR)/kernel_entry.o $(KERNEL_OBJS) $(DRIVER_OBJS) $(ASM_OBJS)
-	ld -m elf_i386 -o $@ -Ttext 0x1000 $(BUILD_DIR)/kernel_entry.o $(KERNEL_OBJS) $(DRIVER_OBJS) $(ASM_OBJS) --oformat binary
+	ld -m elf_x86_64 -o $@ -Ttext 0x1000 $(BUILD_DIR)/kernel_entry.o $(KERNEL_OBJS) $(DRIVER_OBJS) $(ASM_OBJS) --oformat binary
 
 $(BUILD_DIR)/kernel_entry.o: $(SRC_KERNEL)/kernel_entry.asm
-	nasm -f elf $< -o $@
+	nasm -f elf64 $< -o $@
 
 $(BUILD_DIR)/%.o: $(SRC_KERNEL)/%.asm
-	nasm -f elf $< -o $@
+	nasm -f elf64 $< -o $@
 
 $(BUILD_DIR)/%.o: $(SRC_KERNEL)/%.c
-	gcc -m32 -ffreestanding -fno-pie -c $< -o $@
+	gcc -m64 -ffreestanding -mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -fno-pie -c $< -o $@
 
 $(BUILD_DIR)/%.o: $(SRC_DRIVERS)/%.c
-	gcc -m32 -ffreestanding -fno-pie -c $< -o $@
+	gcc -m64 -ffreestanding -mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -fno-pie -c $< -o $@
 
 clean:
 	rm -f $(BUILD_DIR)/*.bin $(BUILD_DIR)/*.o
