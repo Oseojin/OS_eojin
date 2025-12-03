@@ -99,7 +99,7 @@ init_pm:
     jmp 0x08:init_lm
 
 ; 64-bit Long Mode
-[BITS]
+[BITS 64]
 init_lm:
     mov ax, 0
     mov ds, ax
