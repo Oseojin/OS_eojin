@@ -25,7 +25,7 @@ start:
 
     mov ax, 0x0
     mov es, ax
-    mov bx, 07e00           ; ES:BX = 0x0000:0x7e00
+    mov bx, 0x7e00           ; ES:BX = 0x0000:0x7e00
 
     mov dh, 50              ; 읽을 섹터 수
     mov dl, [BOOT_DRIVE]
