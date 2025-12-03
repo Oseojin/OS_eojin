@@ -13,10 +13,10 @@ extern void timer_handler();
 // 스택에 저장된 레지스터 상태
 typedef struct
 {
-    uint32_t    ds;                                     // Data Segment Selector
-    uint32_t    edi, esi, ebp, esp, ebx, edx, ecx, eax; // Pushed by push
-    uint32_t    int_no, err_code;                       // Interrupt Number, Error Code
-    uint32_t    eip, cs, eflags, useresp, ss;           // Pushed by CPU automatically
+    uint64_t    ds;                                     // Data Segment Selector
+    uint64_t    edi, esi, ebp, esp, ebx, edx, ecx, eax; // Pushed by push
+    uint64_t    int_no, err_code;                       // Interrupt Number, Error Code
+    uint64_t    eip, cs, eflags, useresp, ss;           // Pushed by CPU automatically
 } register_t;
 
 void    isr_handler(register_t r)
