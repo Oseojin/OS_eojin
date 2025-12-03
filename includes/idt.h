@@ -29,7 +29,7 @@ extern idt_gate_t      idt[IDT_ENTRIES];
 extern idt_register_t  idt_reg;
 
 // 함수 선언
-void    set_idt_gate(int n, uint32_t handler);
+void    set_idt_gate(int n, uint64_t handler);
 void    set_idt();
 
 #endif
