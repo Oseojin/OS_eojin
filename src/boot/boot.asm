@@ -15,7 +15,9 @@ start:
     call print_string
 
     ; 커널 로드 (섹터 2부터 읽어서 0x1000에 저장)
-    mov bx, 0x1000          ; ES:BX = 0x0000:0x1000 (저장할 주소)
+    mov ax, 0x1000
+    mov es, ax
+    xor bs, bs          ; ES:BX = 0x1000:0x0000 = 0x10000 (저장할 주소)
     mov dh, 20              ; 읽을 섹터 수
     mov dl, [BOOT_DRIVE]
     call disk_load
@@ -126,13 +128,32 @@ gdt_descriptor:
     dw gdt_end - gdt_start - 1  ; GDT 크기
     dd gdt_start                ; Offset
 
+; 64-bit GDT
+gdt64_start:
+    dq 0    ; Null 디스크립터
+gdt64_code:
+    ; Code 세그먼트: 디스크립터 권한 Level(0), Present(1), Read/Write(1), Executable(1), 64-bit(1)
+    ; Access:   10011010b (0x9a)
+    ; Flags:    10101111b (0xaf) - L(bit 5)=1 (Long Mode)
+    dd 0x00000000
+    dd 0x00209a00
+gdt64_data:
+    ; Data 세그먼트
+    dd 0x00000000
+    dd 0x00009200
+gdt64_end:
+
+gdt64_descriptor:
+    dw gdt64_end - gdt64_start - 1
+    dq gdt64_start  ; 64비트 주소
+
 ; 상수 정의
 CODE_SEG equ gdt_code - gdt_start
 DATA_SEG equ gdt_data - gdt_start
 
 [BITS 32]
 init_pm:
-    ; 세그먼트 레지터스 DATA_SEG로 초기화
+    ; 세그먼트 레지스터 DATA_SEG로 초기화
     mov ax, DATA_SEG
     mov ds, ax
     mov ss, ax
@@ -140,19 +161,31 @@ init_pm:
     mov fs, ax                      ; 32bit CPU에서 추가된 사용처가 정해지지 않은 영역
     mov gs, AX                      ; 32bit CPU에서 추가된 사용처가 정해지지 않은 영역
 
-    ; 스택 포인터 업데이트
-    mov ebp, 0x90000
-    mov esp, ebp
+    call check_cpuid
+    call check_long_mode
+    call setup_paging
+    call enable_paging
 
-    call BEGIN_PM
+    lgdt [gdt64_descriptor]         ; 64비트 GDT 로드
+    jmp 0x08:init_lm                ; 64-bit Far Jump
 
-BEGIN_PM:
-    ; 성공 확인 (비디오 메모리에 글자 찍기)
-    mov ebx, 0xb8000                ; VGA 텍스트 메모리 주소
-    mov byte [ebx], 'P'             ; 'P' 문자
-    mov byte [ebx+1], 0x0f          ; 흰색 글자, 검은 배경
+[BITS 64]
+init_lm:
+    ; 세그먼트 레지스터 초기화
+    mov ax, 0
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
 
-    call 0x1000                     ; 커널 코드가 로드된 주소로 점프
+    ; 스택 재설정
+    mov rsp, 0x90000
+
+    ; 커널 점프 (커널이 0x10000에 있음)
+    ; 64비트에서는 call 명령어에 32비트 절대주소 사용 불가 -> 레지스터 이용
+    mov rax, 0x10000
+    call rax
     jmp $
 
 ; 모든 메모리는 이 위에서 할당하기!
@@ -162,3 +195,6 @@ times 510 - ($ - $$) db 0
 ; 매직 넘버
 dw 0xaa55
 
+; Include 파일
+%include "src/boot/cpuid.asm"
+%include "src/boot/long_mode_init.asm"
