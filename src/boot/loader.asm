@@ -41,13 +41,22 @@ align 4
 
 ; GDT
 gdt_start:
-    dd 0, 0
+    dd 0
+    dd 0
 gdt_code:
-    dw 0xffff, 0x0000
-    db 0x00, 0x9a, 0xcf, 0x00   ; Code (Base = 0, Limit = 4GB)
+    dw 0xffff
+    dw 0x0000
+    db 0x00
+    db 0x9a
+    db 0xcf
+    db 0x00   ; Code (Base = 0, Limit = 4GB)
 gdt_data:
-    dw 0xffff, 0x0000
-    db 0x0, 0x92, 0xcf, 0x00    ; Data
+    dw 0xffff
+    dw 0x0000
+    db 0x0
+    db 0x92
+    db 0xcf
+    db 0x00    ; Data
 gdt_end:
 
 align 4
@@ -107,7 +116,7 @@ init_pm:
     call enable_paging
 
     lgdt [gdt64_descriptor]
-    jmp 0x08:init_lm
+    jmp CODE_SEG:init_lm
 
 ; 32-bit 유틸리티
 print_string_pm:
@@ -127,7 +136,7 @@ print_string_pm:
     popa
     ret
 
-msg_prot_mode db "Successfully enterd 32-bit Protected Mode.", 0
+msg_prot_mode db "Successfully entered 32-bit Protected Mode.", 0
 
 ; 64-bit Long Mode
 [BITS 64]
