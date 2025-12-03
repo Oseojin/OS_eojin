@@ -1,3 +1,5 @@
+[BITS 32]
+
 ; CPUID 지원 여부 확인
 check_cpuid:
     pushfd
@@ -15,7 +17,7 @@ check_cpuid:
     ret
 
 .no_cpuid:
-    mov si, msg_no_cpuid
+    mov esi, msg_no_cpuid
     call print_string
     jmp $
 
@@ -33,7 +35,7 @@ check_long_mode:
     ret
 
 .no_long_mode:
-    mov si, msg_no_long_mode
+    mov esi, msg_no_long_mode
     call print_string
     jmp $
 

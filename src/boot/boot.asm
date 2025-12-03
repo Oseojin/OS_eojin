@@ -17,7 +17,7 @@ start:
     ; 커널 로드 (섹터 2부터 읽어서 0x1000에 저장)
     mov ax, 0x1000
     mov es, ax
-    xor bs, bs          ; ES:BX = 0x1000:0x0000 = 0x10000 (저장할 주소)
+    xor bx, bx          ; ES:BX = 0x1000:0x0000 = 0x10000 (저장할 주소)
     mov dh, 20              ; 읽을 섹터 수
     mov dl, [BOOT_DRIVE]
     call disk_load
@@ -188,13 +188,13 @@ init_lm:
     call rax
     jmp $
 
+; Include 파일
+%include "src/boot/cpuid.asm"
+%include "src/boot/long_mode_init.asm"
+
 ; 모든 메모리는 이 위에서 할당하기!
 ; 부트로더 크기 512 바이트로 설정 (0으로 초기화)
 times 510 - ($ - $$) db 0
 
 ; 매직 넘버
 dw 0xaa55
-
-; Include 파일
-%include "src/boot/cpuid.asm"
-%include "src/boot/long_mode_init.asm"
