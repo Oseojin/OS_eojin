@@ -1,4 +1,4 @@
-[BITS 32]
+[BITS 64]
 [EXTERN main]   ; C 코드에 있는 main 함수 참조 선언
 
 global _start   ; 링커가 찾을 수 있도록 진입점 심볼 노출
