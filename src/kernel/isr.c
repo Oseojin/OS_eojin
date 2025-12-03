@@ -14,12 +14,13 @@ extern void timer_handler();
 typedef struct
 {
     uint64_t    ds;                                     // Data Segment Selector
-    uint64_t    edi, esi, ebp, esp, ebx, edx, ecx, eax; // Pushed by push
+    uint64_t    rax, rbx, rcx, rdx, rbp, rsi, rdi;
+    uint64_t    r8, r9, r10, r11, r12, r13, r14, r15;
     uint64_t    int_no, err_code;                       // Interrupt Number, Error Code
-    uint64_t    eip, cs, eflags, useresp, ss;           // Pushed by CPU automatically
-} register_t;
+    uint64_t    rip, cs, rflags, rsp, ss;               // Pushed by CPU automatically
+} registers_t;
 
-void    isr_handler(register_t r)
+void    isr_handler(registers_t r)
 {
     // 타이머 입력
     if (r.int_no == 32)
