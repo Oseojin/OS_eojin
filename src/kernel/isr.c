@@ -39,6 +39,6 @@ void    isr_handler(registers_t r)
     // 0으로 나누기
     else if (r.int_no == 0)
     {
-        kprint("Divide by Zero!");
+        kprint("Divide by Zero!\n");
     }
 }

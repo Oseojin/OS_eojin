@@ -10,11 +10,9 @@ stage2_start:
     mov ss, ax
     mov sp, 0x7e00
 
-    ; 비디오 메모리에 직접 'S' 찍기
-    mov ax, 0xb800
-    mov es, ax
-    mov byte [es:0], 'S'
-    mov byte [es:1], 0x0f
+    ; 로그
+    mov si, msg_real_mode
+    call print_string_rm
 
     ; A20 라인 활성화 (Fast A20 방식)
     in al, 0x92
@@ -76,7 +74,7 @@ gdt64_descriptor:
     dd gdt64_start
 
 ; 유틸리티 (16비트)
-print_string:
+print_string_rm:
     mov ah, 0x0e
 .loop:
     lodsb
@@ -86,6 +84,8 @@ print_string:
     jmp .loop
 .done:
     ret
+
+msg_real_mode db "Successfully entered 16-bit Real Mode.", 13, 10, 0
 
 ; 32-bit 보호 모드
 [BITS 32]
@@ -98,9 +98,8 @@ init_pm:
     mov gs, ax
 
     ; 디버깅 코드
-    mov edi, 0xb8000
-    mov byte [edi], 'P'
-    mov byte [edi+1], 0x0f
+    mov ebx, msg_prot_mode
+    call print_string_pm
 
     call check_cpuid
     call check_long_mode
@@ -110,9 +109,30 @@ init_pm:
     lgdt [gdt64_descriptor]
     jmp 0x08:init_lm
 
+; 32-bit 유틸리티
+print_string_pm:
+    pusha
+    mov edx, 0xb8000
+    add edx, 320
+.loop:
+    mov al, [ebx]
+    mov ah, 0x07
+    cmp al, 0
+    je .done
+    mov [edx], ax
+    add ebx, 1
+    add edx, 2
+    jmp .loop
+.done:
+    popa
+    ret
+
+msg_prot_mode db "Successfully enterd 32-bit Protected Mode.", 0
+
 ; 64-bit Long Mode
 [BITS 64]
 init_lm:
+    ; 세그먼트 설정
     mov ax, 0
     mov ds, ax
     mov es, ax
@@ -121,10 +141,9 @@ init_lm:
     mov ss, ax
     mov rsp, 0x90000
 
-    ; 디버깅 L
-    mov rax, 0xb8000
-    mov byte [rax], 'L'
-    mov byte [rax+1], 0x2f
+    ; 로그
+    mov rbx, msg_long_mode
+    call print_string_lm
 
     ; 커널 위치
     ; Stage 1에서 50섹터를 읽었으므로 0x7e00 바로 뒤쪽에 커널이 붙어있음
@@ -136,6 +155,33 @@ init_lm:
 
     mov rax, 0x8600     ; 커널 예상 위치
     call rax
+
+; 64-bit 유틸리티
+print_string_lm:
+    push rbx
+    push rdx
+    push rax
+
+    mov rdx, 0xb8000
+    add rdx, 480
+.loop:
+    mov al, [rbx]
+    mov ah, 0x07
+
+    cmp al, 0
+    je .done
+
+    mov [rdx], ax
+    add rbx, 1
+    add rdx, 2
+    jmp .loop
+.done:
+    pop rax
+    pop rdx
+    pop rbx
+    ret
+
+msg_long_mode db "Successfully entered 64-bit Long Mode.", 0
 
 %include "src/boot/cpuid.asm"
 %include "src/boot/long_mode_init.asm"

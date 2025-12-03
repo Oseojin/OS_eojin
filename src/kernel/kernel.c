@@ -13,6 +13,7 @@ extern uint8_t  inb(uint16_t port);
 // pic.c
 extern void     pic_remap();
 // screen.c
+extern void     kprint_at(char* message, int col, int row);
 extern void     kprint(char* message);
 // interrupt.asm
 extern void     irq0();
@@ -22,7 +23,7 @@ extern void     init_timer(uint32_t freq);
 
 void    main()
 {
-    kprint("Kernel loaded.\n");
+    kprint_at("Kernel loaded.\n", 0, 4);
 
     set_idt_gate(0, (uint64_t)isr0);    // ISR 0번(Divide by Zero) 등록
     set_idt_gate(32, (uint64_t)irq0);   // 32번 (IRQ 0) 등록, Timer
@@ -37,7 +38,7 @@ void    main()
 
     outb(0x20, 0x11);
 
-    kprint("outb");
+    kprint("outb\n");
 
     pic_remap(); // PIC 초기화 및 리매핑
 
