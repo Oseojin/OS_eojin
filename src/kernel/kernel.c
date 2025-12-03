@@ -3,9 +3,17 @@
 volatile char*  video_memory = (volatile char*)0xb8000;
 
 // 외부 함수 선언
+// idt.h
 extern void set_idt_gate(int n, uint32_t handler);
 extern void set_idt();
 extern void isr0();
+// ports.c
+extern void     outb(uint16_t port, uint8_t data);
+extern uint8_t  inb(uint16_t port);
+// pic.c
+extern void pic_remap();
+
+
 
 void    print_string(const char* str, int offset)
 {
@@ -33,4 +41,12 @@ void    main()
     __asm__ volatile("int $0");
 
     print_string("After Interrupt.", 80);
+
+    outb(0x20, 0x11);
+
+    print_string("outb", 160);
+
+    pic_remap(); // PIC 초기화 및 리매핑
+
+    print_string("init & remap", 240);
 }
