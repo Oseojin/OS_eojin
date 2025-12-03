@@ -1,12 +1,12 @@
 #include "../../includes/idt.h"
 
 // 외부 함수 선언
-// kernel.c
-extern void print_string(const char* str, int offset);
 // ports.c
 extern void outb(uint16_t port, uint8_t data);
 // keyboard.c
 extern void keyboard_handler();
+// screen.c
+extern void kprint(char* message);
 
 // 스택에 저장된 레지스터 상태
 typedef struct
@@ -30,6 +30,6 @@ void    isr_handler(register_t r)
     // 0으로 나누기
     else if (r.int_no == 0)
     {
-        print_string("Divide by Zero!", 800);
+        kprint("Divide by Zero!");
     }
 }
