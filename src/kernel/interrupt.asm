@@ -21,7 +21,7 @@ global irq1
         push 0
         push %2
         jmp isr_common_stub
-#endmacro
+%endmacro
 
 ; 핸들러 정의
 ISR_NOERRCODE 0         ; isr0 (Divide by Zero)
@@ -74,7 +74,6 @@ isr_common_stub:
     pop rcx
     pop rdx
     pop rbp
-    pop rsi
     pop rsi
     pop rdi
     pop r8

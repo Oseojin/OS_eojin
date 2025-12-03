@@ -4,7 +4,7 @@ volatile char*  video_memory = (volatile char*)0xb8000;
 
 // 외부 함수 선언
 // idt.h
-extern void     set_idt_gate(int n, uint32_t handler);
+extern void     set_idt_gate(int n, uint64_t handler);
 extern void     set_idt();
 extern void     isr0();
 // ports.c
@@ -24,9 +24,9 @@ void    main()
 {
     kprint("Kernel loaded.\n");
 
-    set_idt_gate(0, (uint32_t)isr0);    // ISR 0번(Divide by Zero) 등록
-    set_idt_gate(32, (uint32_t)irq0);   // 32번 (IRQ 0) 등록, Timer
-    set_idt_gate(33, (uint32_t)irq1);   // 33번 (IRQ 1) 등록, Keyboard
+    set_idt_gate(0, (uint64_t)isr0);    // ISR 0번(Divide by Zero) 등록
+    set_idt_gate(32, (uint64_t)irq0);   // 32번 (IRQ 0) 등록, Timer
+    set_idt_gate(33, (uint64_t)irq1);   // 33번 (IRQ 1) 등록, Keyboard
 
     // IDT 로드
     set_idt();
