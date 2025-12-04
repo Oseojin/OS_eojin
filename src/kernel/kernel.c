@@ -2,6 +2,7 @@
 #include "../../includes/utils.h"
 #include "../../includes/memory.h"
 #include "../../includes/pmm.h"
+#include "../../includes/kheap.h"
 
 volatile char*  video_memory = (volatile char*)0xb8000;
 
@@ -16,6 +17,10 @@ extern int      strcmp(char s1[], char s2[]);
 extern void     print_memory_map();
 // pmm.h
 extern void     init_pmm();
+// kheap.h
+extern void     init_kheap();
+extern void*    kmalloc(size_t size);
+extern void     kfree(void* ptr);
 // ports.c
 extern void     outb(uint16_t port, uint8_t data);
 extern uint8_t  inb(uint16_t port);
@@ -71,6 +76,39 @@ void    user_input(char* input)
             kprint("\n");
         }
     }
+    // malloc test
+    else if (strcmp(input, "heap_test") == 0)
+    {
+        char    buf[32];
+
+        void*   a = kmalloc(64);
+        kprint("Alloc A: "); hex_to_ascii((uint64_t)a, buf); kprint(buf); kprint("\n");
+
+        void*   b = kmalloc(64);
+        kprint("Alloc B: "); hex_to_ascii((uint64_t)b, buf); kprint(buf); kprint("\n");
+
+        void*   c = kmalloc(64);
+        kprint("Alloc C: "); hex_to_ascii((uint64_t)c, buf); kprint(buf); kprint("\n");
+
+        kprint("Free B...\n");
+        kfree(b);
+
+        void*   d = kmalloc(64);
+        kprint("Alloc D: "); hex_to_ascii((uint64_t)d, buf); kprint(buf); kprint("\n");
+
+        if (d == b)
+        {
+            kprint("Heap Test Passed! (Address Reused)\n");
+        }
+        else
+        {
+            kprint("Heap Test Failed (Address Not Reused)\n");
+        }
+
+        kfree(a);
+        kfree(c);
+        kfree(d);
+    }
     else
     {
         kprint("Unknown command: ");
@@ -106,6 +144,9 @@ void    main()
 
     // PMM 초기화
     init_pmm();
+
+    // Heap 초기화
+    init_kheap();
 
     // 타이머 인터럽트(IRQ 0) 마스크 해제
     // 키보드 인터럽트(IRQ 1) 마스크 해제
