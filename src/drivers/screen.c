@@ -115,3 +115,17 @@ void    kprint(char* message)
 {
     kprint_at(message, -1, -1);
 }
+
+void    clear_screen()
+{
+    int             screen_size = MAX_COLS * MAX_ROWS;
+    unsigned char*  vidmem = (unsigned char*)VIDEO_ADDRESS;
+
+    for (int i = 0; i < screen_size; i++)
+    {
+        vidmem[i * 2] = ' ';
+        vidmem[i * 2 + 1] = WHITE_ON_BLACK;
+    }
+
+    set_cursor_offset(0);
+}

@@ -28,8 +28,8 @@ uint32_t    tick = 0;
 void    timer_handler()
 {
     tick++;
-    if (tick % 100 == 0)
-    {
-        kprint(".");
-    }
+    // if (tick % 100 == 0)
+    // {
+    //     kprint(".");
+    // }
 }

@@ -1,5 +1,4 @@
 #include "../../includes/keyboard.h"
-#include <stdint.h>
 
 // 외부 함수 선언
 // ports.c
@@ -7,6 +6,8 @@ extern uint8_t  inb(uint16_t port);
 // screen.c
 extern void     kprint(char *message);
 extern void     kprint_backspace();
+// kernel.c
+extern void     user_input(char* input);
 
 // 상태 변수
 static int  is_shift = 0;
@@ -89,9 +90,7 @@ void    keyboard_handler()
     {
         kprint("\n");
 
-        kprint("Command: ");
-        kprint(key_buffer);
-        kprint("\n");
+        user_input(key_buffer);
 
         // 버퍼 초기화
         buffer_index = 0;

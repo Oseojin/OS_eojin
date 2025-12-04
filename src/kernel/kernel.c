@@ -1,4 +1,5 @@
 #include "../../includes/idt.h"
+#include "../../includes/utils.h"
 
 volatile char*  video_memory = (volatile char*)0xb8000;
 
@@ -7,6 +8,8 @@ volatile char*  video_memory = (volatile char*)0xb8000;
 extern void     set_idt_gate(int n, uint64_t handler);
 extern void     set_idt();
 extern void     isr0();
+// utils.h
+extern int      strcmp(char s1[], char s2[]);
 // ports.c
 extern void     outb(uint16_t port, uint8_t data);
 extern uint8_t  inb(uint16_t port);
@@ -20,6 +23,34 @@ extern void     irq0();
 extern void     irq1();
 // timer.c
 extern void     init_timer(uint32_t freq);
+
+void    user_input(char* input)
+{
+    if (strcmp(input, "help") == 0)
+    {
+        kprint("Available commands:\n");
+        kprint("    help    - Show this list\n");
+        kprint("    clear   - Clear the screen\n");
+        kprint("    halt    - Halt the CPU\n");
+    }
+    else if (strcmp(input, "clear") == 0)
+    {
+        clear_screen();
+    }
+    else if (strcmp(input, "halt") == 0)
+    {
+        kprint("Halting CPU. Bye!\n");
+        __asm__ volatile("hlt");
+    }
+    else
+    {
+        kprint("Unknown command: ");
+        kprint(input);
+        kprint("\n");
+    }
+
+    kprint("OS_eojin> ");
+}
 
 void    main()
 {
@@ -52,10 +83,10 @@ void    main()
     // CPU 인터럽트 허용 (STI)
     __asm__ volatile("sti");
 
-    kprint("Waiting for Keyboard...\n");
-
     // 타이머 인터럽트
     init_timer(50);
+    
+    kprint("OS_eojin> ");
 
     while(1);
 }
