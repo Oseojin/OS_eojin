@@ -66,6 +66,7 @@ void    user_input(char* input)
         kprint("    echo [message]  - Print message\n");
         kprint("    write [data]    - Write Data to Disk\n");
         kprint("    read            - Read Data from Disk\n");
+        kprint("    mount           - Connect fat_init() and ATA Driver\n");
     }
     else if (strcmp(command, "clear") == 0)
     {
