@@ -35,7 +35,7 @@ void    user_input(char* input)
         kprint("    help    - Show this list\n");
         kprint("    clear   - Clear the screen\n");
         kprint("    halt    - Halt the CPU\n");
-        kprint("    memory  - Show Memory Map\n")
+        kprint("    memory  - Show Memory Map\n");
     }
     else if (strcmp(input, "clear") == 0)
     {

@@ -4,6 +4,8 @@
 // ports.c
 extern void     outb(uint16_t port, uint8_t data);
 extern uint8_t  inb(uint16_t port);
+// utils.c
+extern void     memcpy(char* source, char* dest, int nbytes);
 
 // VGA 메모리 주소
 #define VIDEO_ADDRESS 0xb8000
@@ -69,6 +71,31 @@ void    print_char(char c, int col, int row, char attribute_byte)
         vidmem[offset] = c;
         vidmem[offset+1] = attribute_byte;
         offset += 2;
+    }
+
+    // 스크롤
+    // 오프셋이 화면 범위를 넘어갔는지 확인 (25 * 80 * 2 = 4000)
+    if (offset >= MAX_ROWS * MAX_COLS * 2)
+    {
+        int i;
+        // 한 줄씩 위로 복사
+        for (i = 1; i < MAX_ROWS; i++)
+        {
+            memcpy(
+                (char*)(VIDEO_ADDRESS + (i * MAX_COLS * 2)),
+                (char*)(VIDEO_ADDRESS + (i - 1) * MAX_COLS * 2),
+                MAX_COLS * 2
+            );
+        }
+        // 마지막 줄 삭제
+        char*   last_line = (char*)(VIDEO_ADDRESS + ((MAX_ROWS - 1) * MAX_COLS * 2));
+        for (i = 0; i < MAX_COLS * 2; i+=2)
+        {
+            last_line[i] = ' ';
+            last_line[i+1] = attribute_byte;
+        }
+        // 오프셋을 마지막 줄 시작으로 되돌리기
+        offset -= 2 * MAX_COLS;
     }
 
     set_cursor_offset(offset);
