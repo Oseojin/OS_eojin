@@ -23,3 +23,17 @@ void    memcpy(char* source, char* dest, int nbytes)
         *(dest + i) = *(source + i);
     }
 }
+
+// 숫자를 16진수 문자열로 변환
+void    hex_to_ascii(uint64_t n, char* str)
+{
+    str[0] = '0';
+    str[1] = 'x';
+    char    *hex = "0123456789abcdef";
+    for (int i = 0; i < 16; i++)
+    {
+        str[17 - i] = hex[n & 0xf];
+        n >>= 4;
+    }
+    str[18] = '\0';
+}

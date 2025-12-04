@@ -1,5 +1,6 @@
 #include "../../includes/idt.h"
 #include "../../includes/utils.h"
+#include "../../includes/memory.h"
 
 volatile char*  video_memory = (volatile char*)0xb8000;
 
@@ -10,6 +11,8 @@ extern void     set_idt();
 extern void     isr0();
 // utils.h
 extern int      strcmp(char s1[], char s2[]);
+// memory.h
+extern void     print_memory_map();
 // ports.c
 extern void     outb(uint16_t port, uint8_t data);
 extern uint8_t  inb(uint16_t port);
@@ -32,6 +35,7 @@ void    user_input(char* input)
         kprint("    help    - Show this list\n");
         kprint("    clear   - Clear the screen\n");
         kprint("    halt    - Halt the CPU\n");
+        kprint("    memory  - Show Memory Map\n")
     }
     else if (strcmp(input, "clear") == 0)
     {
@@ -41,6 +45,10 @@ void    user_input(char* input)
     {
         kprint("Halting CPU. Bye!\n");
         __asm__ volatile("hlt");
+    }
+    else if (strcmp(input, "memory") == 0)
+    {
+        print_memory_map();
     }
     else
     {
@@ -85,7 +93,7 @@ void    main()
 
     // 타이머 인터럽트
     init_timer(50);
-    
+
     kprint("OS_eojin> ");
 
     while(1);
