@@ -3,6 +3,7 @@
 #include "../../includes/memory.h"
 #include "../../includes/pmm.h"
 #include "../../includes/kheap.h"
+#include "../../includes/ata.h"
 
 volatile char*  video_memory = (volatile char*)0xb8000;
 
@@ -14,6 +15,7 @@ extern void     isr0();
 // utils.h
 extern int      strcmp(char s1[], char s2[]);
 extern int      get_next_token(char* input, char* buffer, int* offset);
+extern void     strcpy(char* dest, const char* src);
 // memory.h
 extern void     print_memory_map();
 // pmm.h
@@ -22,6 +24,9 @@ extern void     init_pmm();
 extern void     init_kheap();
 extern void*    kmalloc(size_t size);
 extern void     kfree(void* ptr);
+// ata.h
+extern void     ata_read_sector(uint32_t lba, uint8_t* buffer);
+extern void     ata_write_sector(uint32_t lba, uint8_t* data);
 // ports.c
 extern void     outb(uint16_t port, uint8_t data);
 extern uint8_t  inb(uint16_t port);
@@ -51,11 +56,13 @@ void    user_input(char* input)
     if (strcmp(command, "help") == 0)
     {
         kprint("Available commands:\n");
-        kprint("    help    - Show this list\n");
-        kprint("    clear   - Clear the screen\n");
-        kprint("    halt    - Halt the CPU\n");
-        kprint("    memory  - Show Memory Map\n");
-        kprint("    echo [message]    - Print message\n");
+        kprint("    help            - Show this list\n");
+        kprint("    clear           - Clear the screen\n");
+        kprint("    halt            - Halt the CPU\n");
+        kprint("    memory          - Show Memory Map\n");
+        kprint("    echo [message]  - Print message\n");
+        kprint("    write [data]    - Write Data to Disk\n");
+        kprint("    read            - Read Data from Disk\n");
     }
     else if (strcmp(command, "clear") == 0)
     {
@@ -79,6 +86,57 @@ void    user_input(char* input)
 
         kprint(&input[offset]);
         kprint("\n");
+    }
+    else if (strcmp(command, "write") == 0)
+    {
+        // write <문자열>
+
+        // 버퍼 준비 (512바이트)
+        uint8_t*    buf = (uint8_t*)kmalloc(512);
+        memset(buf, 0, 512);
+
+        // 인자 파싱
+        char    arg[128];
+        int     arg_offset = offset;
+
+        if (get_next_token(input, arg, &arg_offset))
+        {
+            strcpy((char*)buf, arg);
+        }
+        else
+        {
+            strcpy((char*)buf, "TEST_DATA_DEFAULT");
+        }
+
+        kprint("Writing to LBA 200: ");
+        kprint((char*)buf);
+        kprint("\n");
+
+        // 디스크 쓰기
+        ata_write_sector(200, buf);
+
+        kfree(buf);
+        kprint("Write Done.\n");
+    }
+    else if (strcmp(command, "read") == 0)
+    {
+        // read
+
+        // 버퍼 준비
+        uint8_t *buf = (uint8_t*)kmalloc(512);
+        memset(buf, 0, 512);
+
+        kprint("Reading from LBA 200...\n");
+
+        // 디스크 읽기
+        ata_read_sector(200, buf);
+
+        // 결과 출력
+        kprint("Data: ");
+        kprint((char*)buf); // 문자열이라고 가정하고 출력
+        kprint("\n");
+
+        kfree(buf);
     }
     // alloc test
     else if (strcmp(command, "alloc") == 0)

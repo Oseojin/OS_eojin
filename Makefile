@@ -21,7 +21,7 @@ all: $(BUILD_DIR)/os-image.bin
 
 $(BUILD_DIR)/os-image.bin: $(BUILD_DIR)/boot.bin $(BUILD_DIR)/loader.bin $(BUILD_DIR)/kernel.bin
 	cat $^ > $@
-	truncate -s 32768 $@
+	truncate -s 1M $@
 
 $(BUILD_DIR)/boot.bin: $(SRC_BOOT)/boot.asm
 	nasm -f bin $< -o $@
