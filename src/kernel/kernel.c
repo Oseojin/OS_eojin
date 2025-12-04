@@ -13,6 +13,7 @@ extern void     set_idt();
 extern void     isr0();
 // utils.h
 extern int      strcmp(char s1[], char s2[]);
+extern int      get_next_token(char* input, char* buffer, int* offset);
 // memory.h
 extern void     print_memory_map();
 // pmm.h
@@ -37,29 +38,50 @@ extern void     init_timer(uint32_t freq);
 
 void    user_input(char* input)
 {
-    if (strcmp(input, "help") == 0)
+    char    command[32];
+    char    arg[128];
+    int     offset = 0;
+
+    if (!get_next_token(input, command, &offset))
+    {
+        kprint("OS_eojin> ");
+        return;
+    }
+
+    if (strcmp(command, "help") == 0)
     {
         kprint("Available commands:\n");
         kprint("    help    - Show this list\n");
         kprint("    clear   - Clear the screen\n");
         kprint("    halt    - Halt the CPU\n");
         kprint("    memory  - Show Memory Map\n");
+        kprint("    echo [message]    - Print message\n");
     }
-    else if (strcmp(input, "clear") == 0)
+    else if (strcmp(command, "clear") == 0)
     {
         clear_screen();
     }
-    else if (strcmp(input, "halt") == 0)
+    else if (strcmp(command, "halt") == 0)
     {
         kprint("Halting CPU. Bye!\n");
         __asm__ volatile("hlt");
     }
-    else if (strcmp(input, "memory") == 0)
+    else if (strcmp(command, "memory") == 0)
     {
         print_memory_map();
     }
+    else if (strcmp(command, "echo") == 0)
+    {
+        while (input[offset] == ' ')
+        {
+            offset++;
+        }
+
+        kprint(&input[offset]);
+        kprint("\n");
+    }
     // alloc test
-    else if (strcmp(input, "alloc") == 0)
+    else if (strcmp(command, "alloc") == 0)
     {
         void    *ptr = pmm_alloc_block();
 
@@ -77,7 +99,7 @@ void    user_input(char* input)
         }
     }
     // malloc test
-    else if (strcmp(input, "heap_test") == 0)
+    else if (strcmp(command, "heap_test") == 0)
     {
         char    buf[32];
 

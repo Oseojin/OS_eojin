@@ -48,3 +48,39 @@ void    hex_to_ascii(uint64_t n, char* str)
     }
     str[18] = '\0';
 }
+
+size_t  strlen(const char* str)
+{
+    size_t  len = 0;
+    while (str[len])
+    {
+        len++;
+    }
+    return len;
+}
+
+int get_next_token(char* input, char* buffer, int* offset)
+{
+    int i = *offset;
+    int j = 0;
+
+    while (input[i] == ' ')
+    {
+        i++;
+    }
+
+    if (input[i] == '\0')
+    {
+        *offset = i;
+        return 0;
+    }
+
+    while (input[i] != ' ' && input[i] != '\0')
+    {
+        buffer[j++] = input[i++];
+    }
+    buffer[j] = '\0';
+
+    *offset = i;
+    return 1;
+}
