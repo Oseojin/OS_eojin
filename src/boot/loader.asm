@@ -14,6 +14,34 @@ stage2_start:
     mov si, msg_real_mode
     call print_string_rm
 
+    ; Memory Map Detection (E820)
+    ; 결과 저장 위치: 0x5000 (Count), 0x5004 (Entries)
+    mov di, 0x5004      ; 맵 저장 시작 주소
+    xor ebx, ebx
+    xor bp, bp          ; 엔트리 개수 카운터
+
+    mov edx, 0x534d4150 ; 'SMAP' 매직 넘버
+    mov eax, 0xe820
+
+.e820_loop:
+    mov eax, 0xe820     ; 함수 코드 (호출 시 마다 리셋 될 수 있음)
+    mov ecx, 24         ; 버퍼 크기 (24바이트 요청)
+
+    int 0x15
+
+    jc .e820_done       ; 에러 시 종료
+
+    add di, 24          ; 다음 저장 위치로 이동
+    inc bp              ; 개수 증가
+
+    test ebx, ebx       ; ebx가 0이면 리스크 끝
+    jz .e820_done
+
+    jmp .e820_loop
+
+.e820_done:
+    mov [0x5000], bp    ; 0x5000 번지에 총 개수 저장
+
     ; A20 라인 활성화 (Fast A20 방식)
     in al, 0x92
     or al, 2
@@ -116,7 +144,7 @@ init_pm:
     call enable_paging
 
     lgdt [gdt64_descriptor]
-    jmp CODE_SEG:init_lm
+    jmp 0x08:init_lm
 
 ; 32-bit 유틸리티
 print_string_pm:
