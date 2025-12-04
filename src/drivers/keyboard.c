@@ -1,41 +1,100 @@
+#include "../../includes/keyboard.h"
 #include <stdint.h>
 
 // 외부 함수 선언
 // ports.c
-extern unsigned char    inb(unsigned short port);
+extern uint8_t  inb(uint16_t port);
 // screen.c
-extern void             kprint(char* message);
+extern void     kprint(char *message);
+extern void     kprint_backspace();
 
-// 스캔 코드 -> 아스키 변환 테이블
-// 인덱스 = 스캔 코드, 값 = 아스키 문자
-char    scancode_to_sacii[] = 
+// 상태 변수
+static int  is_shift = 0;
+static char key_buffer[256];
+static int  buffer_index = 0;
+
+// 소문자 테이블
+const char  ascii_low[] =
 {
-    0, // 인덱스 맞추기 용
-    27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b', // 0~14
-    '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n', // 15~28
-    0, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', // 29~40
-    '`', 0, '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0, // 41~54
-    0, 0, ' ', 0, // 55~58
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // F1~F10 (59~68)
-    0, 0, // 69~70
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 71~83
-    0, 0, 0, // 84~86 (얘네는 뭐임?)
-    0, 0 // F11, F12 (87~88)
+    0, 0, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', 0, // 0-14
+    0, 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', 0, // 15-28
+    0, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`',    // 29-41
+    0, '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0, '*', 0, ' '
+};
+
+// 대문자(Shift) 테이블
+const char  ascii_shift[] =
+{
+    0, 0, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', 0,
+    0, 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', 0,
+    0, 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '\"', '~',
+    0, '|', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', 0, '*', 0, ' '
 };
 
 void    keyboard_handler()
 {
-    uint8_t scancode = inb(0x60); // 0x60 포트에서 스캔 코드 읽기
+    uint8_t scancode = inb(0x60);
 
-    // 키를 뗄 때(Break Code)는 최상위 비트가 1이 된다. ex) 0x81
-    // 키를 누를 때(Make Code)만 처리 (최상위 비트가 0인 경우)
-    if (scancode < 58)
+    // Shift Key 처리
+    // Shift Down
+    if (scancode == 0x2a || scancode == 0x36)
     {
-        char    ascii = scancode_to_sacii[scancode];
-        if (ascii != 0)
+        is_shift = 1;
+        return;
+    }
+    // Shift Up
+    else if (scancode == 0xaa || scancode == 0xb6)
+    {
+        is_shift = 0;
+        return;
+    }
+
+    // Break Code (키 뗌) 무시 (Shift 제외)
+    if (scancode & 0x80)
+    {
+        return;
+    }
+
+    // 스캔 코드 범위 확인
+    if (scancode > SC_MAX)
+    {
+        return;
+    }
+
+    // 문자 변환
+    char    letter = is_shift ? ascii_shift[scancode] : ascii_low[scancode];
+
+    if (letter != 0)
+    {
+        // 화면 출력
+        char    str[2] = {letter, 0};
+        kprint(str);
+
+        // 버퍼 저장
+        key_buffer[buffer_index++] = letter;
+        key_buffer[buffer_index] = 0;
+    }
+    // 백스페이스 처리 (스캔코드 0x0e)
+    else if (scancode == 0x0e)
+    {
+        if (buffer_index > 0)
         {
-            char    str[2] = {ascii, 0}; // 문자열 변환
-            kprint(str);
+            buffer_index--;
+            key_buffer[buffer_index] = 0;
+            kprint_backspace();
         }
+    }
+    // 엔터 처리 (스캔코드 0x1c)
+    else if (scancode == 0x1c)
+    {
+        kprint("\n");
+
+        kprint("Command: ");
+        kprint(key_buffer);
+        kprint("\n");
+
+        // 버퍼 초기화
+        buffer_index = 0;
+        key_buffer[0] = 0;
     }
 }
