@@ -5,7 +5,7 @@
 extern void     outb(uint16_t port, uint8_t data);
 extern uint8_t  inb(uint16_t port);
 // utils.c
-extern void     memcpy(char* source, char* dest, int nbytes);
+extern void     memcpy(char* dest, char* source, int nbytes);
 
 // VGA 메모리 주소
 #define VIDEO_ADDRESS 0xb8000
@@ -82,8 +82,8 @@ void    print_char(char c, int col, int row, char attribute_byte)
         for (i = 1; i < MAX_ROWS; i++)
         {
             memcpy(
-                (char*)(VIDEO_ADDRESS + (i * MAX_COLS * 2)),
                 (char*)(VIDEO_ADDRESS + (i - 1) * MAX_COLS * 2),
+                (char*)(VIDEO_ADDRESS + (i * MAX_COLS * 2)),
                 MAX_COLS * 2
             );
         }

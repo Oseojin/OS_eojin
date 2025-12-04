@@ -4,6 +4,7 @@
 #include "../../includes/pmm.h"
 #include "../../includes/kheap.h"
 #include "../../includes/ata.h"
+#include "../../includes/fat.h"
 
 volatile char*  video_memory = (volatile char*)0xb8000;
 
@@ -27,6 +28,8 @@ extern void     kfree(void* ptr);
 // ata.h
 extern void     ata_read_sector(uint32_t lba, uint8_t* buffer);
 extern void     ata_write_sector(uint32_t lba, uint8_t* data);
+// fat.h
+extern void     fat_init();
 // ports.c
 extern void     outb(uint16_t port, uint8_t data);
 extern uint8_t  inb(uint16_t port);
@@ -137,6 +140,10 @@ void    user_input(char* input)
         kprint("\n");
 
         kfree(buf);
+    }
+    else if (strcmp(command, "mount") == 0)
+    {
+        fat_init();
     }
     // alloc test
     else if (strcmp(command, "alloc") == 0)

@@ -2,13 +2,16 @@ BUILD_DIR = build
 SRC_BOOT = src/boot
 SRC_KERNEL = src/kernel
 SRC_DRIVERS = src/drivers
+SRC_FS = src/fs
 
 KERNEL_SRCS = $(wildcard $(SRC_KERNEL)/*.c)
 DRIVER_SRCS = $(wildcard $(SRC_DRIVERS)/*.c)
+FS_SRCS = $(wildcard $(SRC_FS)/*.c)
 ASM_SRCS = $(filter-out $(SRC_KERNEL)/kernel_entry.asm, $(wildcard $(SRC_KERNEL)/*.asm))
 
 KERNEL_OBJS = $(patsubst $(SRC_KERNEL)/%.c, $(BUILD_DIR)/%.o, $(KERNEL_SRCS))
 DRIVER_OBJS = $(patsubst $(SRC_DRIVERS)/%.c, $(BUILD_DIR)/%.o, $(DRIVER_SRCS))
+FS_OBJS = $(patsubst $(SRC_FS)/%.c, $(BUILD_DIR)/%.o, $(FS_SRCS))
 ASM_OBJS = $(patsubst $(SRC_KERNEL)/%.asm, $(BUILD_DIR)/%.o, $(ASM_SRCS))
 
 run: $(BUILD_DIR)/os-image.bin
@@ -29,8 +32,8 @@ $(BUILD_DIR)/boot.bin: $(SRC_BOOT)/boot.asm
 $(BUILD_DIR)/loader.bin: $(SRC_BOOT)/loader.asm
 	nasm -f bin $< -o $@
 
-$(BUILD_DIR)/kernel.bin: $(BUILD_DIR)/kernel_entry.o $(KERNEL_OBJS) $(DRIVER_OBJS) $(ASM_OBJS)
-	ld -m elf_x86_64 -o $@ -Ttext 0x8600 $(BUILD_DIR)/kernel_entry.o $(KERNEL_OBJS) $(DRIVER_OBJS) $(ASM_OBJS) --oformat binary
+$(BUILD_DIR)/kernel.bin: $(BUILD_DIR)/kernel_entry.o $(KERNEL_OBJS) $(DRIVER_OBJS) $(FS_OBJS) $(ASM_OBJS)
+	ld -m elf_x86_64 -o $@ -Ttext 0x8600 $(BUILD_DIR)/kernel_entry.o $(KERNEL_OBJS) $(DRIVER_OBJS) $(FS_OBJS) $(ASM_OBJS) --oformat binary
 
 $(BUILD_DIR)/kernel_entry.o: $(SRC_KERNEL)/kernel_entry.asm
 	nasm -f elf64 $< -o $@
@@ -39,6 +42,9 @@ $(BUILD_DIR)/%.o: $(SRC_KERNEL)/%.asm
 	nasm -f elf64 $< -o $@
 
 $(BUILD_DIR)/%.o: $(SRC_KERNEL)/%.c
+	gcc -m64 -ffreestanding -mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -fno-pie -c $< -o $@
+
+$(BUILD_DIR)/%.o: $(SRC_FS)/%.c
 	gcc -m64 -ffreestanding -mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -fno-pie -c $< -o $@
 
 $(BUILD_DIR)/%.o: $(SRC_DRIVERS)/%.c

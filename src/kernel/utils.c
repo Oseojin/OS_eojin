@@ -15,7 +15,7 @@ int strcmp(char s1[], char s2[])
 }
 
 // 메모리 복사
-void    memcpy(char* source, char* dest, int nbytes)
+void    memcpy(char* dest, char* source, int nbytes)
 {
     int i;
     for (i = 0; i < nbytes; i++)
