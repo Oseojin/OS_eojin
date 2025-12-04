@@ -25,10 +25,17 @@ setup_paging:
     ; PT 없이 PD에서 바로 2MB 단위로 매핑
 
     ; 첫 번째 엔트리: 물리주소 0 ~ 2MB 매핑
+    mov edi, 0x3000         ; PD 테이블 주소
     mov eax, 0x0            ; 물리주소 0번지
     or eax, 0b10000011      ; Present(1) | Writable(1) | Huge Page(1)
-    mov [0x3000], eax
+    mov ecx, 512            ; 512개 엔트리 채우기
 
+.fill_pd:
+    mov [edi], eax
+    add eax, 0x200000       ; 다음 물리 주소 (+2MB)
+    add edi, 8              ; 다음 엔트리 주소 (+8byte)
+    loop .fill_pd
+    
     ret
 
 enable_paging:

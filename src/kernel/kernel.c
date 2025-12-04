@@ -1,6 +1,7 @@
 #include "../../includes/idt.h"
 #include "../../includes/utils.h"
 #include "../../includes/memory.h"
+#include "../../includes/pmm.h"
 
 volatile char*  video_memory = (volatile char*)0xb8000;
 
@@ -13,6 +14,8 @@ extern void     isr0();
 extern int      strcmp(char s1[], char s2[]);
 // memory.h
 extern void     print_memory_map();
+// pmm.h
+extern void     init_pmm();
 // ports.c
 extern void     outb(uint16_t port, uint8_t data);
 extern uint8_t  inb(uint16_t port);
@@ -50,6 +53,24 @@ void    user_input(char* input)
     {
         print_memory_map();
     }
+    // alloc test
+    else if (strcmp(input, "alloc") == 0)
+    {
+        void    *ptr = pmm_alloc_block();
+
+        if (ptr == 0)
+        {
+            kprint("Allocation Failed (Out of Memory)\n");
+        }
+        else
+        {
+            char    buf[32];
+            kprint("Allocated at: ");
+            hex_to_ascii((uint64_t)ptr, buf);
+            kprint(buf);
+            kprint("\n");
+        }
+    }
     else
     {
         kprint("Unknown command: ");
@@ -82,6 +103,9 @@ void    main()
     pic_remap(); // PIC 초기화 및 리매핑
 
     kprint("init & remap\n");
+
+    // PMM 초기화
+    init_pmm();
 
     // 타이머 인터럽트(IRQ 0) 마스크 해제
     // 키보드 인터럽트(IRQ 1) 마스크 해제

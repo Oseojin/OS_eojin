@@ -24,6 +24,17 @@ void    memcpy(char* source, char* dest, int nbytes)
     }
 }
 
+// 메모리의 특정 영역을 지정된 값으로 채움
+void*   memset(void* dest, int val, uint64_t count)
+{
+    unsigned char*  ptr = (unsigned char*)dest;
+    for (uint64_t i = 0; i < count; i++)
+    {
+        ptr[i] = (unsigned char)val;
+    }
+    return dest;
+}
+
 // 숫자를 16진수 문자열로 변환
 void    hex_to_ascii(uint64_t n, char* str)
 {
