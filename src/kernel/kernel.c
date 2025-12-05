@@ -28,8 +28,6 @@ extern void     kfree(void* ptr);
 // ata.h
 extern void     ata_read_sector(uint32_t lba, uint8_t* buffer);
 extern void     ata_write_sector(uint32_t lba, uint8_t* data);
-// fat.h
-extern void     fat_init();
 // ports.c
 extern void     outb(uint16_t port, uint8_t data);
 extern uint8_t  inb(uint16_t port);
@@ -68,6 +66,7 @@ void    user_input(char* input)
         kprint("    write [data]    - Write Data to Disk\n");
         kprint("    read            - Read Data from Disk\n");
         kprint("    mount           - Connect fat_init() and ATA Driver\n");
+        kprint("    ls              - List Root Directory\n");
     }
     else if (strcmp(command, "clear") == 0)
     {
@@ -146,6 +145,10 @@ void    user_input(char* input)
     else if (strcmp(command, "mount") == 0)
     {
         fat_init();
+    }
+    else if (strcmp(command, "ls") == 0)
+    {
+        fat_list();
     }
     // alloc test
     else if (strcmp(command, "alloc") == 0)

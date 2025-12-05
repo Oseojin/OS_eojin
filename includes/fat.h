@@ -56,4 +56,7 @@ typedef struct
 #define ATTR_DIRECTORY  0x10
 #define ATTR_ARCHIVE    0x20
 
+void    fat_init();
+void    fat_list();
+
 #endif
