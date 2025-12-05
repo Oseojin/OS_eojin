@@ -14,6 +14,15 @@ global irq1
         jmp isr_common_stub
 %endmacro
 
+%macro ISR_ERRCODE 1
+    global isr%1
+    isr%1:
+        cli
+        ; 에러 코드는 CPU가 이미 푸시했음
+        push %1         ; 인터럽트 번호
+        jmp isr_common_stub
+%endmacro
+
 %macro IRQ 2
     global irq%1
     irq%1:
@@ -25,8 +34,14 @@ global irq1
 
 ; 핸들러 정의
 ISR_NOERRCODE 0         ; isr0 (Divide by Zero)
+ISR_ERRCODE   8         ; isr8 (Double Fault)
+ISR_ERRCODE   13        ; isr13 (General Protection Fault)
+ISR_ERRCODE   14        ; isr14 (Page Fault)
+ISR_NOERRCODE 128       ; isr128 (System Call 0x80)
 IRQ 0, 32               ; irq0 (Timer)
 IRQ 1, 33               ; irq1 (Keyboard)
+
+; Removed Debug ISR128 (Restored standard macro above)
 
 ; 공통 처리 루틴
 isr_common_stub:
@@ -58,11 +73,23 @@ isr_common_stub:
     mov gs, ax
 
     ; C 핸들러 호출 (System V AMD64 ABI)
-    ; 첫 번째 인자는 RDI 레지스터에 넣어서 전달해야 함
-    ; 현재 스택 포인터(RSP)가 registers_t 구조체의 시작점
+    ; 스택 정렬 체크
+    test rsp, 0xf
+    jz .aligned
+
+    ; 정렬되지 않음 (8바이트 어긋남) -> 더미 푸시
+    push rax        ; 스택 8바이트 이동 -> 16바이트 정렬됨
+    mov rdi, rsp
+    add rdi, 8      ; RDI는 원래 스택 프레임을 가리켜야 함
+    call isr_handler
+    add rsp, 8      ; 스택 복구
+    jmp .restore
+
+.aligned:
     mov rdi, rsp
     call isr_handler
 
+.restore:
     pop rax             ; 원래 데이터 세그먼트 복구
     mov ds, ax
     mov es, ax

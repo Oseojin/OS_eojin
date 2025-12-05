@@ -27,7 +27,7 @@ all: $(BUILD_DIR)/os-image.bin
 $(BUILD_DIR)/system.bin: $(BUILD_DIR)/loader.bin $(BUILD_DIR)/kernel.bin
 	cat $^ > $@
 
-$(BUILD_DIR)/os-image.bin: $(BUILD_DIR)/boot_fat16.bin $(BUILD_DIR)/system.bin
+$(BUILD_DIR)/os-image.bin: $(BUILD_DIR)/boot_fat16.bin $(BUILD_DIR)/system.bin $(BUILD_DIR)/user.bin
 	# 빈 파일 생성 (10MB)
 	dd if=/dev/zero of=$@ bs=1k count=$(DISK_SIZE_KB)
 
@@ -48,6 +48,10 @@ $(BUILD_DIR)/os-image.bin: $(BUILD_DIR)/boot_fat16.bin $(BUILD_DIR)/system.bin
 	# -i: 이미지 파일 지정
 	# :: 경로 사용
 	mcopy -i $@ $(BUILD_DIR)/system.bin ::LOADER.BIN
+	mcopy -i $@ $(BUILD_DIR)/user.bin ::USER.BIN
+
+$(BUILD_DIR)/user.bin: src/user/user.asm
+	nasm -f bin $< -o $@
 
 $(BUILD_DIR)/boot_fat16.bin: $(SRC_BOOT)/boot_fat16.asm
 	nasm -f bin $< -o $@

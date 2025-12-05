@@ -20,16 +20,16 @@ typedef struct
     uint64_t    rip, cs, rflags, rsp, ss;               // Pushed by CPU automatically
 } registers_t;
 
-void    isr_handler(registers_t r)
+void    isr_handler(registers_t* r)
 {
     // 타이머 입력
-    if (r.int_no == 32)
+    if (r->int_no == 32)
     {
         timer_handler();
         outb(0x20, 0x20); // EOI
     }
     // 키보드 입력
-    else if (r.int_no == 33)
+    else if (r->int_no == 33)
     {
         keyboard_handler();
         // PIC에게 데이터를 받았다는 신호(EOI)를 보내야 다음 키 입력이 들어옴
@@ -37,8 +37,36 @@ void    isr_handler(registers_t r)
         outb(0x20, 0x20);
     }
     // 0으로 나누기
-    else if (r.int_no == 0)
+    else if (r->int_no == 0)
     {
         kprint("Divide by Zero!\n");
+    }
+    // 8: Double Fault
+    else if (r->int_no == 8)
+    {
+        kprint("Double Fault! Halting.\n");
+        __asm__ volatile("hlt");
+    }
+    // 13: General Protection Fault
+    else if (r->int_no == 13)
+    {
+        kprint("GP Fault! Halting.\n");
+        __asm__ volatile("hlt");
+    }
+    // 14: Page Fault
+    else if (r->int_no == 14)
+    {
+        kprint("Page Fault! Halting.\n");
+        __asm__ volatile("hlt");
+    }
+    // System Call (0x80)
+    else if (r->int_no == 128)
+    {
+        // RAX: Syscall Number
+        if (r->rax == 1) // Print String
+        {
+            char* msg = (char*)r->rbx;
+            kprint(msg);
+        }
     }
 }

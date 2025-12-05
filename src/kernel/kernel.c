@@ -40,6 +40,11 @@ extern void     clear_screen();
 // interrupt.asm
 extern void     irq0();
 extern void     irq1();
+extern void     isr128();
+extern void     isr8();
+extern void     isr13();
+extern void     isr14();
+
 // timer.c
 extern void     init_timer(uint32_t freq);
 
@@ -68,6 +73,7 @@ void    user_input(char* input)
         kprint("    mount           - Connect fat_init() and ATA Driver\n");
         kprint("    ls              - List Root Directory\n");
         kprint("    cat [file]      - Print File Content\n");
+        kprint("    exec [file]     - Execute User Program\n");
     }
     else if (strcmp(command, "clear") == 0)
     {
@@ -201,6 +207,77 @@ void    user_input(char* input)
             }
         }
     }
+    else if (strcmp(command, "exec") == 0)
+    {
+        char    filename[32];
+        int     arg_offset = offset;
+
+        if (!get_next_token(input, filename, &arg_offset))
+        {
+            kprint("Usage: exec <filename>\n");
+        }
+        else
+        {
+            fat_dir_entry_t entry;
+            if (fat_find_file(filename, &entry))
+            {
+                // 프로그램 로드 주소 (64MB) - 힙(4MB~)과 충돌 방지
+                void* load_addr = (void*)0x4000000;
+                
+                uint16_t cluster = entry.first_cluster_low;
+                uint32_t size = entry.file_size;
+                uint8_t* ptr = (uint8_t*)load_addr;
+                
+                // 임시 버퍼 (섹터 읽기용)
+                uint8_t* buf = (uint8_t*)kmalloc(512);
+                if (!buf)
+                {
+                    kprint("exec: Memory allocation failed\n");
+                }
+                else
+                {
+                    while (size > 0 && cluster < 0xFFF8)
+                    {
+                        uint32_t lba = fat_lba_of_cluster(cluster);
+                        ata_read_sector(lba, buf);
+                        
+                        // 메모리로 복사
+                        int copy_size = (size > 512) ? 512 : size;
+                        for(int i=0; i<copy_size; i++) {
+                            ptr[i] = buf[i];
+                        }
+                        ptr += 512;
+                        size -= copy_size;
+                        
+                        cluster = fat_next_cluster(cluster);
+                    }
+                    kfree(buf);
+
+                    kprint("Loaded ");
+                    char size_buf[16];
+                    hex_to_ascii(entry.file_size, size_buf);
+                    kprint(size_buf);
+                    kprint(" bytes at 0x4000000\n");
+
+                    kprint("Executing ");
+                    kprint(filename);
+                    kprint("...\n");
+
+                    // 함수 포인터로 형변환 후 실행
+                    void (*prog)() = (void (*)())load_addr;
+                    prog();
+
+                    kprint("Returned from User Program.\n");
+                }
+            }
+            else
+            {
+                kprint("File not found: ");
+                kprint(filename);
+                kprint("\n");
+            }
+        }
+    }
     // alloc test
     else if (strcmp(command, "alloc") == 0)
     {
@@ -267,8 +344,12 @@ void    main()
     kprint_at("Kernel loaded.\n", 0, 4);
 
     set_idt_gate(0, (uint64_t)isr0);    // ISR 0번(Divide by Zero) 등록
+    set_idt_gate(8, (uint64_t)isr8);
+    set_idt_gate(13, (uint64_t)isr13);
+    set_idt_gate(14, (uint64_t)isr14);
     set_idt_gate(32, (uint64_t)irq0);   // 32번 (IRQ 0) 등록, Timer
     set_idt_gate(33, (uint64_t)irq1);   // 33번 (IRQ 1) 등록, Keyboard
+    set_idt_gate(128, (uint64_t)isr128);// 128번 (0x80) Syscall
 
     // IDT 로드
     set_idt();
