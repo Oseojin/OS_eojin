@@ -12,10 +12,11 @@ extern void memcpy(char* dest, char* source, int nbytes);
 // 파일 시스템 정보 유지(전역 변수)
 fat_bpb_t   fat_info;
 uint32_t    fat_start_sector;
-uint32_t    data_start_sector;
 uint32_t    root_dir_sector;
+uint32_t    data_start_sector; // Missing variable restored
 uint16_t    current_dir_cluster = 0; // 0 = Root
 char        current_path[256] = "/";
+static int  is_fat_initialized = 0;
 
 char*   fat_get_current_path()
 {
@@ -82,6 +83,28 @@ void    fat_init()
     kprint("\n");
 
     kfree(buffer);
+    is_fat_initialized = 1;
+}
+
+// 다음 클러스터 찾기
+uint16_t fat_next_cluster(uint16_t cluster)
+{
+    uint32_t fat_offset = cluster * 2;
+    uint32_t fat_sector = fat_start_sector + (fat_offset / 512);
+    uint32_t ent_offset = fat_offset % 512;
+
+    uint8_t* buffer = (uint8_t*)kmalloc(512);
+    ata_read_sector(fat_sector, buffer);
+
+    uint16_t next_cluster = *(uint16_t*)&buffer[ent_offset];
+
+    kfree(buffer);
+    return next_cluster;
+}
+
+uint32_t fat_lba_of_cluster(uint16_t cluster)
+{
+    return data_start_sector + ((cluster - 2) * fat_info.sectors_per_cluster);
 }
 
 // Helper: Read directory sector (Root or Sub)
@@ -120,8 +143,42 @@ int fat_read_dir_sector(uint16_t start_cluster, int sector_idx, uint8_t* buffer)
     }
 }
 
+// 파일 이름 비교를 위한 8.3 변환 및 비교
+int fat_filename_match(char* name, char* ext, char* input)
+{
+    char temp[12];
+    int  idx = 0;
+    
+    // Name
+    for (int i = 0; i < 8; i++)
+    {
+        if (name[i] == ' ') break;
+        temp[idx++] = name[i];
+    }
+    
+    // Ext
+    if (ext[0] != ' ')
+    {
+        temp[idx++] = '.';
+        for (int i = 0; i < 3; i++)
+        {
+            if (ext[i] == ' ') break;
+            temp[idx++] = ext[i];
+        }
+    }
+    temp[idx] = 0;
+
+    return (strcmp(temp, input) == 0);
+}
+
 void    fat_list()
 {
+    if (!is_fat_initialized)
+    {
+        kprint("File system not mounted. Run 'mount' first.\n");
+        return;
+    }
+
     // 1섹터 단위 버퍼 할당 (512바이트)
     uint8_t* buffer = (uint8_t*)kmalloc(512);
     if (!buffer)
@@ -207,52 +264,14 @@ void    fat_list()
     kfree(buffer);
 }
 
-// 다음 클러스터 찾기
-uint16_t fat_next_cluster(uint16_t cluster)
-{
-    uint32_t fat_offset = cluster * 2;
-    uint32_t fat_sector = fat_start_sector + (fat_offset / 512);
-    uint32_t ent_offset = fat_offset % 512;
-
-    uint8_t* buffer = (uint8_t*)kmalloc(512);
-    ata_read_sector(fat_sector, buffer);
-
-    uint16_t next_cluster = *(uint16_t*)&buffer[ent_offset];
-
-    kfree(buffer);
-    return next_cluster;
-}
-
-// 파일 이름 비교를 위한 8.3 변환 및 비교
-int fat_filename_match(char* name, char* ext, char* input)
-{
-    char temp[12];
-    int  idx = 0;
-    
-    // Name
-    for (int i = 0; i < 8; i++)
-    {
-        if (name[i] == ' ') break;
-        temp[idx++] = name[i];
-    }
-    
-    // Ext
-    if (ext[0] != ' ')
-    {
-        temp[idx++] = '.';
-        for (int i = 0; i < 3; i++)
-        {
-            if (ext[i] == ' ') break;
-            temp[idx++] = ext[i];
-        }
-    }
-    temp[idx] = 0;
-
-    return (strcmp(temp, input) == 0);
-}
-
 int fat_find_file(char* filename, fat_dir_entry_t* entry_out)
 {
+    if (!is_fat_initialized)
+    {
+        kprint("File system not mounted. Run 'mount' first.\n");
+        return 0;
+    }
+
     uint8_t* buffer = (uint8_t*)kmalloc(512);
     if (!buffer) return 0;
 
@@ -283,6 +302,12 @@ int fat_find_file(char* filename, fat_dir_entry_t* entry_out)
 
 void fat_change_dir(char* dirname)
 {
+    if (!is_fat_initialized)
+    {
+        kprint("File system not mounted. Run 'mount' first.\n");
+        return;
+    }
+
     fat_dir_entry_t entry;
     if (fat_find_file(dirname, &entry))
     {
@@ -308,7 +333,7 @@ void fat_change_dir(char* dirname)
                     }
                 }
             }
-            else if (strcmp(dirname, ".") == 0) { }
+            else if (strcmp(dirname, ".") == 0) { } // No-op for current directory
             else
             {
                 int len = strlen(current_path);
@@ -335,9 +360,4 @@ void fat_change_dir(char* dirname)
     {
         kprint("Directory not found.\n");
     }
-}
-
-uint32_t fat_lba_of_cluster(uint16_t cluster)
-{
-    return data_start_sector + ((cluster - 2) * fat_info.sectors_per_cluster);
 }
