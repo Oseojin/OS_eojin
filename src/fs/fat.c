@@ -166,3 +166,86 @@ void    fat_list()
 
     kfree(buffer);
 }
+
+// 다음 클러스터 찾기
+uint16_t fat_next_cluster(uint16_t cluster)
+{
+    uint32_t fat_offset = cluster * 2;
+    uint32_t fat_sector = fat_start_sector + (fat_offset / 512);
+    uint32_t ent_offset = fat_offset % 512;
+
+    uint8_t* buffer = (uint8_t*)kmalloc(512);
+    ata_read_sector(fat_sector, buffer);
+
+    uint16_t next_cluster = *(uint16_t*)&buffer[ent_offset];
+
+    kfree(buffer);
+    return next_cluster;
+}
+
+// 파일 이름 비교를 위한 8.3 변환 및 비교
+int fat_filename_match(char* name, char* ext, char* input)
+{
+    char temp[12];
+    int  idx = 0;
+    
+    // Name
+    for (int i = 0; i < 8; i++)
+    {
+        if (name[i] == ' ') break;
+        temp[idx++] = name[i];
+    }
+    
+    // Ext
+    if (ext[0] != ' ')
+    {
+        temp[idx++] = '.';
+        for (int i = 0; i < 3; i++)
+        {
+            if (ext[i] == ' ') break;
+            temp[idx++] = ext[i];
+        }
+    }
+    temp[idx] = 0;
+
+    return (strcmp(temp, input) == 0);
+}
+
+int fat_find_file(char* filename, fat_dir_entry_t* entry_out)
+{
+    if (fat_info.root_dir_entries == 0) return 0;
+
+    uint32_t root_dir_size_bytes = fat_info.root_dir_entries * 32;
+    uint32_t root_dir_sectors = root_dir_size_bytes / fat_info.bytes_per_sector;
+
+    uint8_t* buffer = (uint8_t*)kmalloc(512);
+    if (!buffer) return 0;
+
+    for (int i = 0; i < root_dir_sectors; i++)
+    {
+        ata_read_sector(root_dir_sector + i, buffer);
+        fat_dir_entry_t* entry = (fat_dir_entry_t*)buffer;
+
+        for (int j = 0; j < 16; j++)
+        {
+            if (entry[j].name[0] == 0x00) { kfree(buffer); return 0; }
+            if (entry[j].name[0] == 0xE5) continue;
+            if (entry[j].attributes == 0x0F || (entry[j].attributes & ATTR_VOLUME_ID)) continue;
+
+            if (fat_filename_match((char*)entry[j].name, (char*)entry[j].ext, filename))
+            {
+                memcpy((char*)entry_out, (char*)&entry[j], sizeof(fat_dir_entry_t));
+                kfree(buffer);
+                return 1;
+            }
+        }
+    }
+
+    kfree(buffer);
+    return 0;
+}
+
+uint32_t fat_lba_of_cluster(uint16_t cluster)
+{
+    return data_start_sector + ((cluster - 2) * fat_info.sectors_per_cluster);
+}

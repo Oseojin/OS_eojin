@@ -67,6 +67,7 @@ void    user_input(char* input)
         kprint("    read            - Read Data from Disk\n");
         kprint("    mount           - Connect fat_init() and ATA Driver\n");
         kprint("    ls              - List Root Directory\n");
+        kprint("    cat [file]      - Print File Content\n");
     }
     else if (strcmp(command, "clear") == 0)
     {
@@ -149,6 +150,56 @@ void    user_input(char* input)
     else if (strcmp(command, "ls") == 0)
     {
         fat_list();
+    }
+    else if (strcmp(command, "cat") == 0)
+    {
+        char    filename[32];
+        int     arg_offset = offset;
+
+        if (!get_next_token(input, filename, &arg_offset))
+        {
+            kprint("Usage: cat <filename>\n");
+        }
+        else
+        {
+            fat_dir_entry_t entry;
+            if (fat_find_file(filename, &entry))
+            {
+                uint16_t cluster = entry.first_cluster_low;
+                uint32_t size = entry.file_size;
+                uint8_t* buf = (uint8_t*)kmalloc(512);
+                
+                if (!buf)
+                {
+                    kprint("cat: Memory allocation failed\n");
+                }
+                else
+                {
+                    while (size > 0 && cluster < 0xFFF8)
+                    {
+                        uint32_t lba = fat_lba_of_cluster(cluster);
+                        ata_read_sector(lba, buf);
+
+                        // 1바이트씩 출력
+                        for (int i = 0; i < 512 && size > 0; i++, size--)
+                        {
+                            char c[2] = {buf[i], 0};
+                            kprint(c);
+                        }
+
+                        cluster = fat_next_cluster(cluster);
+                    }
+                    kprint("\n");
+                    kfree(buf);
+                }
+            }
+            else
+            {
+                kprint("File not found: ");
+                kprint(filename);
+                kprint("\n");
+            }
+        }
     }
     // alloc test
     else if (strcmp(command, "alloc") == 0)
