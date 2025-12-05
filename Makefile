@@ -52,6 +52,11 @@ $(BUILD_DIR)/os-image.bin: $(BUILD_DIR)/boot_fat16.bin $(BUILD_DIR)/system.bin $
 	# :: 경로 사용
 	mcopy -i $@ $(BUILD_DIR)/system.bin ::LOADER.BIN
 	mcopy -i $@ $(BUILD_DIR)/user.bin ::USER.BIN
+	mcopy -i $@ $(BUILD_DIR)/hello.txt ::HELLO.TXT
+	
+	# 테스트 디렉토리 생성
+	mmd -i $@ ::TESTDIR
+	mcopy -i $@ $(BUILD_DIR)/hello.txt ::TESTDIR/INNER.TXT
 
 $(BUILD_DIR)/user.bin: src/user/user.asm
 	nasm -f bin $< -o $@

@@ -100,6 +100,7 @@ void    user_input(char* input)
         kprint("    ls              - List Root Directory\n");
         kprint("    cat [file]      - Print File Content\n");
         kprint("    exec [file]     - Execute User Program\n");
+        kprint("    cd [dir]        - Change Directory\n");
     }
     else if (strcmp(command, "clear") == 0)
     {
@@ -302,6 +303,20 @@ void    user_input(char* input)
                 kprint(filename);
                 kprint("\n");
             }
+        }
+    }
+    else if (strcmp(command, "cd") == 0)
+    {
+        char    dirname[32];
+        int     arg_offset = offset;
+
+        if (!get_next_token(input, dirname, &arg_offset))
+        {
+            kprint("Usage: cd <dirname>\n");
+        }
+        else
+        {
+            fat_change_dir(dirname);
         }
     }
     // alloc test

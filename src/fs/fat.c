@@ -14,6 +14,7 @@ fat_bpb_t   fat_info;
 uint32_t    fat_start_sector;
 uint32_t    data_start_sector;
 uint32_t    root_dir_sector;
+uint16_t    current_dir_cluster = 0; // 0 = Root
 
 void    fat_init()
 {
@@ -77,17 +78,44 @@ void    fat_init()
     kfree(buffer);
 }
 
+// Helper: Read directory sector (Root or Sub)
+int fat_read_dir_sector(uint16_t start_cluster, int sector_idx, uint8_t* buffer)
+{
+    if (start_cluster == 0)
+    {
+        // Root Directory
+        uint32_t root_dir_size_bytes = fat_info.root_dir_entries * 32;
+        uint32_t root_dir_sectors = root_dir_size_bytes / fat_info.bytes_per_sector;
+        
+        if (sector_idx >= root_dir_sectors) return 0;
+        
+        ata_read_sector(root_dir_sector + sector_idx, buffer);
+        return 1;
+    }
+    else
+    {
+        // Sub Directory (Cluster Chain)
+        int spc = fat_info.sectors_per_cluster;
+        int cluster_steps = sector_idx / spc;
+        int sector_offset = sector_idx % spc;
+        
+        uint16_t curr = start_cluster;
+        for (int i = 0; i < cluster_steps; i++)
+        {
+            if (curr >= 0xFFF8) return 0;
+            curr = fat_next_cluster(curr);
+        }
+        
+        if (curr >= 0xFFF8) return 0;
+        
+        uint32_t lba = fat_lba_of_cluster(curr) + sector_offset;
+        ata_read_sector(lba, buffer);
+        return 1;
+    }
+}
+
 void    fat_list()
 {
-    if (fat_info.root_dir_entries == 0)
-    {
-        kprint("FAT not initialized.\n");
-        return;
-    }
-
-    uint32_t root_dir_size_bytes = fat_info.root_dir_entries * 32;
-    uint32_t root_dir_sectors = root_dir_size_bytes / fat_info.bytes_per_sector;
-
     // 1섹터 단위 버퍼 할당 (512바이트)
     uint8_t* buffer = (uint8_t*)kmalloc(512);
     if (!buffer)
@@ -99,15 +127,16 @@ void    fat_list()
     kprint("Filename        Size\n");
     kprint("--------------------\n");
 
-    for (int i = 0; i < root_dir_sectors; i++)
+    for (int i = 0; ; i++)
     {
-        ata_read_sector(root_dir_sector + i, buffer);
+        if (!fat_read_dir_sector(current_dir_cluster, i, buffer)) break;
+
         fat_dir_entry_t* entry = (fat_dir_entry_t*)buffer;
 
         // 1섹터 당 16개 엔트리 (512 / 32 = 16)
         for (int j = 0; j < 16; j++)
         {
-            // 0x00: End of Directory (전체 종료)
+            // 0x00: End of Directory
             if (entry[j].name[0] == 0x00)
             {
                 kfree(buffer);
@@ -151,6 +180,11 @@ void    fat_list()
             {
                 kprint(".");
                 kprint(ext);
+            }
+            
+            if (entry[j].attributes & ATTR_DIRECTORY)
+            {
+                kprint("/"); // 디렉토리 표시
             }
 
             // 패딩 맞추기 (단순화)
@@ -213,17 +247,13 @@ int fat_filename_match(char* name, char* ext, char* input)
 
 int fat_find_file(char* filename, fat_dir_entry_t* entry_out)
 {
-    if (fat_info.root_dir_entries == 0) return 0;
-
-    uint32_t root_dir_size_bytes = fat_info.root_dir_entries * 32;
-    uint32_t root_dir_sectors = root_dir_size_bytes / fat_info.bytes_per_sector;
-
     uint8_t* buffer = (uint8_t*)kmalloc(512);
     if (!buffer) return 0;
 
-    for (int i = 0; i < root_dir_sectors; i++)
+    for (int i = 0; ; i++)
     {
-        ata_read_sector(root_dir_sector + i, buffer);
+        if (!fat_read_dir_sector(current_dir_cluster, i, buffer)) break;
+
         fat_dir_entry_t* entry = (fat_dir_entry_t*)buffer;
 
         for (int j = 0; j < 16; j++)
@@ -243,6 +273,27 @@ int fat_find_file(char* filename, fat_dir_entry_t* entry_out)
 
     kfree(buffer);
     return 0;
+}
+
+void fat_change_dir(char* dirname)
+{
+    fat_dir_entry_t entry;
+    if (fat_find_file(dirname, &entry))
+    {
+        if (entry.attributes & ATTR_DIRECTORY)
+        {
+            current_dir_cluster = entry.first_cluster_low;
+            kprint("Changed directory.\n");
+        }
+        else
+        {
+            kprint("Not a directory.\n");
+        }
+    }
+    else
+    {
+        kprint("Directory not found.\n");
+    }
 }
 
 uint32_t fat_lba_of_cluster(uint16_t cluster)
