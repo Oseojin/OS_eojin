@@ -82,12 +82,13 @@ isr_common_stub:
     mov rdi, rsp
     add rdi, 8      ; RDI는 원래 스택 프레임을 가리켜야 함
     call isr_handler
-    add rsp, 8      ; 스택 복구
+    mov rsp, rax    ; RSP 스위칭 (반환값이 새 스택 포인터)
     jmp .restore
 
 .aligned:
     mov rdi, rsp
     call isr_handler
+    mov rsp, rax    ; RSP 스위칭
 
 .restore:
     pop rax             ; 원래 데이터 세그먼트 복구

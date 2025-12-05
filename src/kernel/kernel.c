@@ -5,8 +5,35 @@
 #include "../../includes/kheap.h"
 #include "../../includes/ata.h"
 #include "../../includes/fat.h"
+#include "../../includes/process.h"
+
+// process.h
+#include "../../includes/process.h"
 
 volatile char*  video_memory = (volatile char*)0xb8000;
+
+// 외부 함수 선언
+extern void     kprint(char* message);
+
+/*
+void task_a()
+{
+    while(1)
+    {
+        kprint("A");
+        for(int i=0; i<10000000; i++); // Delay
+    }
+}
+
+void task_b()
+{
+    while(1)
+    {
+        kprint("B");
+        for(int i=0; i<10000000; i++); // Delay
+    }
+}
+*/
 
 // 외부 함수 선언
 // idt.h
@@ -35,7 +62,6 @@ extern uint8_t  inb(uint16_t port);
 extern void     pic_remap();
 // screen.c
 extern void     kprint_at(char* message, int col, int row);
-extern void     kprint(char* message);
 extern void     clear_screen();
 // interrupt.asm
 extern void     irq0();
@@ -372,6 +398,12 @@ void    main()
     // Heap 초기화
     init_kheap();
 
+    // 멀티태스킹 초기화
+    init_multitasking();
+    
+    // create_kernel_process(task_a);
+    // create_kernel_process(task_b);
+
     // 타이머 인터럽트(IRQ 0) 마스크 해제
     // 키보드 인터럽트(IRQ 1) 마스크 해제
     // 1111 1100 = 0xfc
@@ -385,5 +417,10 @@ void    main()
 
     kprint("OS_eojin> ");
 
-    while(1);
+    while(1)
+    {
+        // kprint("M");
+        // for(int i=0; i<10000000; i++);
+        __asm__ volatile("hlt");
+    }
 }

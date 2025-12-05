@@ -1,4 +1,5 @@
 #include "../../includes/idt.h"
+#include "../../includes/process.h"
 
 // 외부 함수 선언
 // ports.c
@@ -7,6 +8,7 @@ extern void outb(uint16_t port, uint8_t data);
 extern void keyboard_handler();
 // screen.c
 extern void kprint(char* message);
+extern void hex_to_ascii(uint64_t n, char* str); // Add extern
 // timer.c
 extern void timer_handler();
 
@@ -20,13 +22,18 @@ typedef struct
     uint64_t    rip, cs, rflags, rsp, ss;               // Pushed by CPU automatically
 } registers_t;
 
-void    isr_handler(registers_t* r)
+uint64_t isr_handler(registers_t* r)
 {
+    uint64_t next_rsp = (uint64_t)r;
+
     // 타이머 입력
     if (r->int_no == 32)
     {
         timer_handler();
         outb(0x20, 0x20); // EOI
+        
+        // 스케줄링
+        next_rsp = schedule((uint64_t)r);
     }
     // 키보드 입력
     else if (r->int_no == 33)
@@ -69,4 +76,6 @@ void    isr_handler(registers_t* r)
             kprint(msg);
         }
     }
+    
+    return next_rsp;
 }
