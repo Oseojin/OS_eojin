@@ -38,6 +38,7 @@ extern void     pic_remap();
 // screen.c
 extern void     kprint_at(char* message, int col, int row);
 extern void     kprint(char* message);
+extern void     clear_screen();
 // interrupt.asm
 extern void     irq0();
 extern void     irq1();

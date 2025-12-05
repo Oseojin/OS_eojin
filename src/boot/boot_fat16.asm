@@ -4,17 +4,17 @@
 jmp short start
 nop
 
-; BPB - FAT16 호환
+; BPB (BIOS Parameter Block) - FAT16
 oem_name                db "MSWIN4.1"
 bytes_per_sector        dw 512
 sectors_per_cluster     db 1
 reserved_sectors        dw 1
 fat_count               db 2
-root_dir_entries        dw 224
+root_dir_entries        dw 512
 total_sector_16         dw 0
 media_type              db 0xf8
-fat_size_16             dw 9
-sectors_per_track       dw 18
+fat_size_16             dw 80
+sectors_per_track       dw 32
 head_count              dw 2
 hidden_sectors          dd 0
 total_sectors_32        dd 0
@@ -27,206 +27,197 @@ volume_id               dd 0x12345678
 volume_label            db "OS_EOJIN   "
 fs_type                 db "FAT16   "
 
-; Bootloader Code
 start:
-    ; 세그먼트 초기화
     cli
-    mov ax, 0
+    cld
+    xor ax, ax
     mov ds, ax
     mov es, ax
     mov ss, ax
     mov sp, 0x7c00
     sti
 
-    mov [drive_number], dl  ; BIOS가 넘겨준 드라이브 번호 저장
+    mov [drive_number], dl
 
-    ; 루트 디렉토리 위치 계산
-    ; RootDirStart = ReservedSectors + (FatCount * FatSize)
+    ; BIOS Extended Read (LBA) Check
+    mov ah, 0x41
+    mov bx, 0x55aa
+    mov dl, [drive_number]
+    int 0x13
+    jc .no_lba
+    cmp bx, 0xaa55
+    jne .no_lba
+
+    ; [DEBUG] L
+    mov ah, 0x0e
+    mov al, 'L'
+    int 0x10
+
+    ; Calculate Root Dir Start LBA
     mov ax, [fat_size_16]
-    mov bl, [fat_count]
-    xor bh, bh
-    mul bx                      ; AX = FatSize * FatCount
-    add ax, [reserved_sectors]  ; AX = RootDirStart Sector (LBA)
+    xor cx, cx
+    mov cl, [fat_count]
+    mul cx
+    add ax, [reserved_sectors]
+    push ax                 ; Save RootDirStart
 
-    push ax                     ; 스택에 루트 디렉토리 시작 섹터 저장
-
-    ; 루트 디렉토리 크기 계산 및 로드
-    ; RootDirSectors = (RootDirEntries * 32) / 512
+    ; Calculate Root Dir Size (sectors)
     mov ax, [root_dir_entries]
-    shl ax, 5                       ; * 32
+    shl ax, 5
     xor dx, dx
     mov bx, [bytes_per_sector]
-    div bx                          ; AX = 섹터 수
-
-    mov cx, ax                      ; 읽을 섹터 수
-    pop ax                          ; 루트 디렉토리 시작 LBA (복원)
-
-    ; 데이터 영역 시작 LBA 계산
-    ; DataStart = RootDirStart + RootDirSectors
+    div bx
+    
+    mov cx, ax              ; CX = RootSectors
+    pop ax                  ; AX = RootDirStart LBA
+    push ax                 ; Save RootDirStart
+    add ax, cx              ; AX = DataStart LBA
     mov [data_start], ax
-    add [data_start], cx
 
-    mov bx, 0x500                   ; 버퍼 주소 (임시)
-    push ax                         ; LBA 저장
-    push cx                         ; 개수 저장
+    ; Read Root Directory
+    pop ax                  ; AX = RootDirStart
+    mov bx, 0x500           ; Buffer 0x500
+    call read_sectors       ; (CX = RootSectors)
 
-    call read_sectors               ; 루트 디렉토리 읽기 (AX = LBA, CX = Count, ES:BX = Buffer)
-
-    ; 파일 찾기 ("LOADER  BIN")
+    ; Search for File
     mov cx, [root_dir_entries]
-    mov di, 0x500                   ; 루트 디렉토리 버퍼
-
-.search_loop:
+    mov di, 0x500
+.search:
     push cx
-    mov cx, 11                      ; 파일명 길이 (8 + 3)
+    mov cx, 11
     mov si, filename
     push di
-    rep cmpsb                       ; 문자열 비교
+    rep cmpsb
     pop di
     je .found
-
     pop cx
-    add di, 32                      ; 다음 엔트리
-    loop .search_loop
-    jmp .error                      ; 탐색 실패
+    add di, 32
+    loop .search
+    jmp disk_error              ; File not found
 
 .found:
-    pop cx                          ; 스택 정리
+    pop cx
+    mov dx, [di + 26]       ; First Cluster
+    mov [cluster], dx
 
-    ; 시작 클러스터 번호 획득
-    mov dx, [di + 26]               ; First Cluster Low (Offset 26)
-    mov [cluster], dx               ; 저장
-
-    ; FAT 테이블 읽기
-    mov ax, 0x1000
-    mov es, ax
-    mov bx, 0                       ; ES:BX = 0x1000:0000
-
+    ; Load FAT Table
     mov ax, [reserved_sectors]
     mov cx, [fat_size_16]
-    call read_sectors               ; FAT 테이블 로드
+    mov bx, 0x2000
+    mov es, bx
+    xor bx, bx
+    call read_sectors
 
-    ; 파일 내용 로드 (클러스터 체인 추적)
-    mov ax, 0
+    ; Load File (Cluster Chain)
+    xor ax, ax
     mov es, ax
     mov bx, 0x7e00
 
-.load_file:
-    mov ax, [cluster]
+.load_loop:
+    ; [DEBUG] .
+    mov ah, 0x0e
+    mov al, '.'
+    int 0x10
 
-    ; 클러스터 -> LBA 변환
-    ; LBA = DataStart + (Cluster - 2) * SectorPerCluster
+    mov ax, [cluster]
     sub ax, 2
     xor cx, cx
     mov cl, [sectors_per_cluster]
     mul cx
-    add ax, [data_start]            ; LBA 계산 완료
-
-    mov cx, 1                       ; 클러스터 읽기
-
-    push bx                         ; 현재 버퍼 위치 저장
+    add ax, [data_start]    ; Calculate LBA
+    
+    xor cx, cx
+    mov cl, [sectors_per_cluster]
+    push bx
     call read_sectors
     pop bx
 
-    ; 다음 클러스터 구하기
-    ; FAT 테이블 위치: 0x10000 + (Cluster * 2)
-    mov ax, 0x1000
-    mov fs, ax                      ; FS 세그먼트로 FAT 접근
-
+    ; Next Cluster Lookup
+    mov ax, 0x2000
+    mov fs, ax
     mov ax, [cluster]
-    shl ax, 1                       ; * 2 (16비트 엔트리)
+    shl ax, 1
     mov di, ax
-    mov dx, [fs:di]                 ; 다음 클러스터 읽기
+    mov dx, [fs:di]
+    mov [cluster], dx   ; Update
 
-    mov [cluster], dx               ; 갱신
+    test dx, dx         ; Check if next cluster is 0 (Invalid/Empty)
+    jz fat_zero_error
 
-    ; 버퍼 포인터 이동
+    ; Buffer Advance
     xor ax, ax
     mov al, [sectors_per_cluster]
     mov cx, 512
-    mul cx                          ; 한 클러스터 크기 (Byte)
-    add bx, ax                      ; 버퍼 주소 증가
-    
-    ; End of Chain 확인 (0xfff8 이상)
-    cmp dx, 0xfff8
-    jb .load_file
+    mul cx
+    add bx, ax
 
-    ; 로더 실행
+    ; Reload Next Cluster (DX was clobbered by MUL)
+    mov dx, [cluster]
+
+    ; Loop Check (Safe Comparison)
+    mov ax, 0xfff8
+    cmp dx, ax
+    jae .success
+    jmp .load_loop
+
+.success:
     jmp 0x0000:0x7e00
 
-.error:
-    mov si, msg_error
-    call print_string
+.no_lba:
+    mov ah, 0x0e
+    mov al, 'N'
+    int 0x10
     jmp $
 
-; Helper Funtions
-; read_sectors: LBA 모드로 섹터 읽기
+fat_zero_error:
+    mov ah, 0x0e
+    mov al, 'Z'
+    int 0x10
+    jmp $
 
-; AX = LBA, CX = Count, ES:BX = Buffer
+disk_error:
+    mov ah, 0x0e
+    mov al, 'E'
+    int 0x10
+    jmp $
+
+; ------------------------------------------------------------------
+; read_sectors: LBA Extended Read (AH=42h) Using Stack DAP
+; AX = LBA (Low 16bit), CX = Count, ES:BX = Buffer
+; ------------------------------------------------------------------
 read_sectors:
     pusha
+    and eax, 0x0000ffff
 .loop:
-    push ax
-    push cx
+    push dword 0        ; LBA High [32bit] = 0
+    push eax            ; LBA Low  [32bit] = AX (Zero extended)
+    push es             ; Segment  [16bit]
+    push bx             ; Offset   [16bit]
+    push word 1         ; Count    [16bit] = 1
+    push word 0x10      ; Size     [16bit] = 16 bytes
 
-    call lba_to_chs                 ; AX(LBA) -> CHS 변환 (결과는 CX, DH에)
-
-    mov ah, 0x02                    ; Read Sectors
-    mov al, 1                       ; 1 sector
+    mov ah, 0x42
     mov dl, [drive_number]
+    mov si, sp          ; SI = Stack Pointer (DAP Start)
     int 0x13
-    jc .read_error
+    
+    add sp, 16          ; Clean Stack
 
-    pop cx
-    pop ax
-    inc ax                          ; 다음 LBA
-    add bx, 512                     ; 버퍼 이동
-    loop .read_loop_internal
+    jc .fail
 
+    inc ax              ; Next LBA
+    add bx, 512         ; Buffer Advance
+    
+    dec cx
+    jnz .loop
     popa
     ret
+.fail:
+    jmp disk_error
 
-.read_loop_internal:
-    jmp .loop
-
-.read_error:
-    mov si, msg_read_err
-    call print_string
-    jmp $
-
-; LBA to CHS 변환
-; LBA % SectorsPerTrack + 1 = Sector
-; (LBA / SectorsPerTrack) % Heads = Head
-; (LBA / SectorsPerTrack) / Heads = Cylinder
-lba_to_chs:
-    xor dx, dx
-    div word [sectors_per_track]        ; AX = LBA / SPT, DX = LBA % SPT
-    inc dx
-    mov cl, dl                          ; Sector = CL
-
-    xor dx, dx
-    div word [head_count]               ; AX = Cylinder, DX = Head
-    mov dh, dl                          ; Head = DH
-    mov ch, al                          ; Cylinder Low = CH
-    ret
-
-print_string:
-    mov ah, 0x0e
-.ps_loop:
-    lodsb
-    cmp al, 0
-    je .ps_done
-    int 0x10
-    jmp .ps_loop
-.ps_done:
-    ret
-
-; Data
-filename            db "LOADER  BIN"
-cluster             dw 0
-data_start          dw 0
-msg_error           db "No LOADER.BIN", 0
-msg_read_err        db "Read Err", 0
+filename    db "LOADER  BIN"
+cluster     dw 0
+data_start  dw 0
 
 times 510 - ($ - $$) db 0
 dw 0xaa55

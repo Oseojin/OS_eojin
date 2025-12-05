@@ -3,5 +3,6 @@
         "idt.h": "c",
         "stdint.h": "c",
         "utils.h": "c"
-    }
+    },
+    "makefile.configureOnOpen": false
 }

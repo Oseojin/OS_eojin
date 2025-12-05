@@ -13,7 +13,7 @@ typedef struct
     uint16_t    reserved_sectors;
     uint8_t     fat_count;
     uint16_t    root_dir_entries;
-    uint16_t    tool_sectors_16;
+    uint16_t    total_sectors_16;
     uint8_t     media_type;
     uint16_t    fat_size_16;
     uint16_t    sectors_per_track;
@@ -26,7 +26,7 @@ typedef struct
     uint8_t     reserved;
     uint8_t     boot_signature;
     uint32_t    volume_id;
-    uint32_t    volume_label[11];
+    uint8_t     volume_label[11];
     uint8_t     fs_type[8];
 } __attribute__((packed))   fat_bpb_t;
 
@@ -40,7 +40,7 @@ typedef struct
     uint8_t     create_time_tenth;
     uint16_t    create_time;
     uint16_t    create_date;
-    uint16_t    last_access_data;
+    uint16_t    last_access_date;
     uint16_t    first_cluster_high;
     uint16_t    write_time;
     uint16_t    write_date;
