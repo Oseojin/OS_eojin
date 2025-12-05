@@ -15,6 +15,12 @@ uint32_t    fat_start_sector;
 uint32_t    data_start_sector;
 uint32_t    root_dir_sector;
 uint16_t    current_dir_cluster = 0; // 0 = Root
+char        current_path[256] = "/";
+
+char*   fat_get_current_path()
+{
+    return current_path;
+}
 
 void    fat_init()
 {
@@ -284,6 +290,41 @@ void fat_change_dir(char* dirname)
         {
             current_dir_cluster = entry.first_cluster_low;
             kprint("Changed directory.\n");
+
+            // 경로 문자열 업데이트
+            if (strcmp(dirname, "..") == 0)
+            {
+                int len = strlen(current_path);
+                if (len > 1) 
+                {
+                    for (int i = len - 1; i >= 0; i--)
+                    {
+                        if (current_path[i] == '/')
+                        {
+                            if (i == 0) current_path[1] = 0;
+                            else current_path[i] = 0;
+                            break;
+                        }
+                    }
+                }
+            }
+            else if (strcmp(dirname, ".") == 0) { }
+            else
+            {
+                int len = strlen(current_path);
+                int dlen = strlen(dirname);
+                
+                if (len + dlen + 2 < 256)
+                {
+                    if (len > 1 && current_path[len-1] != '/') 
+                    {
+                        current_path[len] = '/';
+                        len++;
+                    }
+                    for(int i=0; i<dlen; i++) current_path[len+i] = dirname[i];
+                    current_path[len+dlen] = 0;
+                }
+            }
         }
         else
         {

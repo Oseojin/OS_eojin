@@ -82,7 +82,9 @@ void    user_input(char* input)
 
     if (!get_next_token(input, command, &offset))
     {
-        kprint("OS_eojin> ");
+        kprint("OS_eojin:");
+        kprint(fat_get_current_path());
+        kprint("> ");
         return;
     }
 
@@ -377,7 +379,9 @@ void    user_input(char* input)
         kprint("\n");
     }
 
-    kprint("OS_eojin> ");
+    kprint("OS_eojin:");
+    kprint(fat_get_current_path());
+    kprint("> ");
 }
 
 void    main()
@@ -430,7 +434,9 @@ void    main()
     // 타이머 인터럽트
     init_timer(50);
 
-    kprint("OS_eojin> ");
+    kprint("OS_eojin:");
+    kprint(fat_get_current_path());
+    kprint("> ");
 
     while(1)
     {

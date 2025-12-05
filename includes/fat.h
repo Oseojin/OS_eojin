@@ -62,5 +62,6 @@ uint16_t fat_next_cluster(uint16_t cluster);
 int     fat_find_file(char* filename, fat_dir_entry_t* entry_out);
 uint32_t fat_lba_of_cluster(uint16_t cluster);
 void    fat_change_dir(char* dirname);
+char*   fat_get_current_path();
 
 #endif
