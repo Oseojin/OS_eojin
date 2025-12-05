@@ -63,5 +63,8 @@ int     fat_find_file(char* filename, fat_dir_entry_t* entry_out);
 uint32_t fat_lba_of_cluster(uint16_t cluster);
 void    fat_change_dir(char* dirname);
 char*   fat_get_current_path();
+uint16_t fat_get_current_cluster();
+uint16_t fat_allocate_cluster();
+int     fat_create_entry(char* filename, uint8_t attr, uint16_t cluster, uint32_t size);
 
 #endif

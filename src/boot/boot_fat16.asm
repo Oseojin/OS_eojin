@@ -150,6 +150,11 @@ start:
     mov cx, 512
     mul cx
     add bx, ax
+    jnc .no_overflow
+    mov ax, es
+    add ax, 0x1000
+    mov es, ax
+.no_overflow:
 
     ; Reload Next Cluster (DX was clobbered by MUL)
     mov dx, [cluster]
@@ -161,6 +166,10 @@ start:
     jmp .load_loop
 
 .success:
+    ; [DEBUG] J
+    mov ah, 0x0e
+    mov al, 'J'
+    int 0x10
     jmp 0x0000:0x7e00
 
 .no_lba:

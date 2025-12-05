@@ -103,6 +103,8 @@ void    user_input(char* input)
         kprint("    cat [file]      - Print File Content\n");
         kprint("    exec [file]     - Execute User Program\n");
         kprint("    cd [dir]        - Change Directory\n");
+        kprint("    touch [file]    - Create Empty File\n");
+        kprint("    mkdir [dir]     - Create Directory\n");
     }
     else if (strcmp(command, "clear") == 0)
     {
@@ -319,6 +321,79 @@ void    user_input(char* input)
         else
         {
             fat_change_dir(dirname);
+        }
+    }
+    else if (strcmp(command, "touch") == 0)
+    {
+        char    filename[32];
+        int     arg_offset = offset;
+
+        if (!get_next_token(input, filename, &arg_offset))
+        {
+            kprint("Usage: touch <filename>\n");
+        }
+        else
+        {
+            // 파일 생성 (클러스터 0, 크기 0)
+            if (fat_create_entry(filename, 0, 0, 0))
+            {
+                kprint("File created.\n");
+            }
+        }
+    }
+    else if (strcmp(command, "mkdir") == 0)
+    {
+        char    dirname[32];
+        int     arg_offset = offset;
+
+        if (!get_next_token(input, dirname, &arg_offset))
+        {
+            kprint("Usage: mkdir <dirname>\n");
+        }
+        else
+        {
+            // 1. 클러스터 할당
+            uint16_t cluster = fat_allocate_cluster();
+            if (cluster == 0)
+            {
+                kprint("Disk full (No free clusters).\n");
+            }
+            else
+            {
+                // 2. 클러스터 초기화 (. 및 .. 생성)
+                uint8_t* buf = (uint8_t*)kmalloc(512);
+                memset(buf, 0, 512);
+                
+                fat_dir_entry_t* dot = (fat_dir_entry_t*)buf;
+                fat_dir_entry_t* dotdot = (fat_dir_entry_t*)(buf + 32); // 2nd entry
+
+                // . Entry
+                memset(dot->name, ' ', 11);
+                dot->name[0] = '.';
+                dot->attributes = ATTR_DIRECTORY;
+                dot->first_cluster_low = cluster;
+
+                // .. Entry
+                memset(dotdot->name, ' ', 11);
+                dotdot->name[0] = '.';
+                dotdot->name[1] = '.';
+                dotdot->attributes = ATTR_DIRECTORY;
+                dotdot->first_cluster_low = fat_get_current_cluster();
+
+                uint32_t lba = fat_lba_of_cluster(cluster);
+                ata_write_sector(lba, buf);
+                kfree(buf);
+
+                // 3. 현재 디렉토리에 엔트리 생성
+                if (fat_create_entry(dirname, ATTR_DIRECTORY, cluster, 0))
+                {
+                    kprint("Directory created.\n");
+                }
+                else
+                {
+                    kprint("Failed to create entry.\n");
+                }
+            }
         }
     }
     // alloc test

@@ -23,6 +23,11 @@ char*   fat_get_current_path()
     return current_path;
 }
 
+uint16_t fat_get_current_cluster()
+{
+    return current_dir_cluster;
+}
+
 void    fat_init()
 {
     // 부트 섹터(LBA 0) 읽기
@@ -102,6 +107,52 @@ uint16_t fat_next_cluster(uint16_t cluster)
     return next_cluster;
 }
 
+void fat_write_fat_entry(uint16_t cluster, uint16_t value)
+{
+    uint32_t fat_offset = cluster * 2;
+    uint32_t fat_sector = fat_start_sector + (fat_offset / 512);
+    uint32_t ent_offset = fat_offset % 512;
+
+    uint8_t* buffer = (uint8_t*)kmalloc(512);
+    ata_read_sector(fat_sector, buffer);
+
+    *(uint16_t*)&buffer[ent_offset] = value;
+
+    ata_write_sector(fat_sector, buffer);
+    kfree(buffer);
+}
+
+uint16_t fat_allocate_cluster()
+{
+    uint8_t* buffer = (uint8_t*)kmalloc(512);
+    
+    // FAT 섹터 순회
+    // FAT16 size is fat_size_16 sectors
+    for (int i = 0; i < fat_info.fat_size_16; i++)
+    {
+        ata_read_sector(fat_start_sector + i, buffer);
+        
+        // 섹터 내 엔트리 순회 (512 bytes / 2 bytes = 256 entries)
+        for (int j = 0; j < 256; j++)
+        {
+            uint16_t cluster = (i * 256) + j;
+            if (cluster < 2) continue; // 0, 1 reserved
+
+            uint16_t val = *(uint16_t*)&buffer[j*2];
+            if (val == 0x0000)
+            {
+                // Found Free
+                fat_write_fat_entry(cluster, 0xFFFF);
+                kfree(buffer);
+                return cluster;
+            }
+        }
+    }
+
+    kfree(buffer);
+    return 0; // No free space
+}
+
 uint32_t fat_lba_of_cluster(uint16_t cluster)
 {
     return data_start_sector + ((cluster - 2) * fat_info.sectors_per_cluster);
@@ -143,7 +194,7 @@ int fat_read_dir_sector(uint16_t start_cluster, int sector_idx, uint8_t* buffer)
     }
 }
 
-// 파일 이름 비교를 위한 8.3 변환 및 비교
+// 파일 이름 비교를 위한 8.3 변환 및 비교 (대소문자 무시)
 int fat_filename_match(char* name, char* ext, char* input)
 {
     char temp[12];
@@ -168,7 +219,23 @@ int fat_filename_match(char* name, char* ext, char* input)
     }
     temp[idx] = 0;
 
-    return (strcmp(temp, input) == 0);
+    // 대소문자 무시 비교
+    int i = 0;
+    while (temp[i] != 0 && input[i] != 0)
+    {
+        char c1 = temp[i];
+        char c2 = input[i];
+        
+        // 대문자로 통일
+        if (c1 >= 'a' && c1 <= 'z') c1 -= 32;
+        if (c2 >= 'a' && c2 <= 'z') c2 -= 32;
+        
+        if (c1 != c2) return 0;
+        i++;
+    }
+    
+    // 길이가 같은지 확인
+    return (temp[i] == 0 && input[i] == 0);
 }
 
 void    fat_list()
@@ -336,8 +403,18 @@ void fat_change_dir(char* dirname)
             else if (strcmp(dirname, ".") == 0) { } // No-op for current directory
             else
             {
+                // 실제 저장된 이름으로 경로 업데이트
+                char real_name[9];
+                memcpy(real_name, (char*)entry.name, 8);
+                real_name[8] = 0;
+                // 공백 제거
+                for(int k=7; k>=0; k--) { 
+                    if(real_name[k] == ' ') real_name[k]=0; 
+                    else break; 
+                }
+
                 int len = strlen(current_path);
-                int dlen = strlen(dirname);
+                int dlen = strlen(real_name);
                 
                 if (len + dlen + 2 < 256)
                 {
@@ -346,7 +423,7 @@ void fat_change_dir(char* dirname)
                         current_path[len] = '/';
                         len++;
                     }
-                    for(int i=0; i<dlen; i++) current_path[len+i] = dirname[i];
+                    for(int i=0; i<dlen; i++) current_path[len+i] = real_name[i];
                     current_path[len+dlen] = 0;
                 }
             }
@@ -360,4 +437,126 @@ void fat_change_dir(char* dirname)
     {
         kprint("Directory not found.\n");
     }
+}
+
+int fat_create_entry(char* filename, uint8_t attr, uint16_t cluster, uint32_t size)
+{
+    if (!is_fat_initialized) return 0;
+
+    // 8.3 포맷 변환
+    char name[8];
+    char ext[3];
+    memset(name, ' ', 8);
+    memset(ext, ' ', 3);
+
+    int i = 0;
+    int j = 0;
+    // Name parsing
+    while (filename[i] != 0 && filename[i] != '.' && j < 8)
+    {
+        // 대문자 변환 (간단하게)
+        char c = filename[i];
+        if (c >= 'a' && c <= 'z') c -= 32;
+        name[j++] = c;
+        i++;
+    }
+    // Skip to extension
+    while (filename[i] != 0 && filename[i] != '.') i++;
+    if (filename[i] == '.')
+    {
+        i++;
+        j = 0;
+        while (filename[i] != 0 && j < 3)
+        {
+            char c = filename[i];
+            if (c >= 'a' && c <= 'z') c -= 32;
+            ext[j++] = c;
+            i++;
+        }
+    }
+
+    // 빈 슬롯 찾기
+    uint8_t* buffer = (uint8_t*)kmalloc(512);
+    
+    // 디렉토리 순회 (fat_find_file과 유사하지만 쓰기 위해 섹터 번호가 필요)
+    int sector_idx = 0;
+    while (1)
+    {
+        if (!fat_read_dir_sector(current_dir_cluster, sector_idx, buffer)) break;
+
+        fat_dir_entry_t* entries = (fat_dir_entry_t*)buffer;
+        int found = -1;
+
+        for (int k = 0; k < 16; k++)
+        {
+            if (entries[k].name[0] == 0x00 || entries[k].name[0] == 0xE5)
+            {
+                found = k;
+                break;
+            }
+        }
+
+        if (found != -1)
+        {
+            // Found free slot
+            fat_dir_entry_t* target = &entries[found];
+            memcpy((char*)target->name, name, 8);
+            memcpy((char*)target->ext, ext, 3);
+            target->attributes = attr;
+            target->reserved = 0;
+            target->create_time = 0;
+            target->create_date = 0;
+            target->first_cluster_high = 0;
+            target->first_cluster_low = cluster;
+            target->file_size = size;
+
+            // Write back
+            // 섹터 번호 계산 다시 필요
+            uint32_t lba = 0;
+            if (current_dir_cluster == 0)
+            {
+                lba = root_dir_sector + sector_idx;
+            }
+            else
+            {
+                // Subdir LBA calc (Simplified, assuming 1 sector/cluster again or linear scan)
+                // fat_read_dir_sector에서 계산했던 로직을 다시 써야함.
+                // 여기서는 간단히 fat_read_dir_sector가 1을 반환했으므로
+                // 그 LBA를 알아내야 함.
+                // fat_read_dir_sector를 수정해서 LBA를 반환하거나, 여기서 다시 계산.
+                
+                int spc = fat_info.sectors_per_cluster;
+                int cluster_steps = sector_idx / spc;
+                int sector_offset = sector_idx % spc;
+                uint16_t curr = current_dir_cluster;
+                for (int s = 0; s < cluster_steps; s++) curr = fat_next_cluster(curr);
+                lba = fat_lba_of_cluster(curr) + sector_offset;
+            }
+
+            ata_write_sector(lba, buffer);
+            kfree(buffer);
+
+            // 생성된 이름 출력
+            char final_name[13];
+            int n = 0;
+            for(int k=0; k<8; k++) if(target->name[k] != ' ') final_name[n++] = target->name[k];
+            if (target->ext[0] != ' ') {
+                final_name[n++] = '.';
+                for(int k=0; k<3; k++) if(target->ext[k] != ' ') final_name[n++] = target->ext[k];
+            }
+            final_name[n] = 0;
+            
+            kprint("Entry created: ");
+            kprint(final_name);
+            kprint("\n");
+
+            return 1;
+        }
+
+        sector_idx++;
+    }
+
+    kfree(buffer);
+    kprint("Directory full or error.\n");
+    return 0;
 }
