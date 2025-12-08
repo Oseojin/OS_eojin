@@ -111,3 +111,17 @@ void vmm_init()
     vmm_switch_pml4(kernel_pml4);
     kprint("VMM Initialized.\n");
 }
+
+page_table_t* vmm_create_user_pml4()
+{
+    page_table_t* pml4 = (page_table_t*)pmm_alloc_block();
+    if (!pml4) return 0;
+    memset(pml4, 0, PAGE_SIZE);
+
+    // 커널 영역 매핑 공유 (PML4 Entry 0: 0 ~ 512GB)
+    // 현재 커널은 0~128MB Identity Mapping을 사용하므로 Entry 0에 다 들어있음.
+    // 이를 복사하여 공유함.
+    pml4->entries[0] = kernel_pml4->entries[0];
+
+    return pml4;
+}

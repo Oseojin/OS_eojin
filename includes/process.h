@@ -21,6 +21,8 @@ typedef struct {
     
     uint64_t    kernel_stack_base; // 커널 스택 (Ring 0 진입용)
     uint64_t    kernel_stack_top;
+    
+    uint64_t    pml4;       // Page Map Level 4 (Physical Address)
 } process_t;
 
 void    init_multitasking();

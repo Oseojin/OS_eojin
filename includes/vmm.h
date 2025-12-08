@@ -28,9 +28,12 @@ typedef struct {
 // 함수 선언
 void        vmm_init();
 page_table_t* vmm_create_pml4();
+page_table_t* vmm_create_user_pml4();
 void        vmm_map_page(page_table_t* pml4, uint64_t vaddr, uint64_t paddr, uint64_t flags);
 void        vmm_unmap_page(page_table_t* pml4, uint64_t vaddr);
 void        vmm_switch_pml4(page_table_t* pml4);
 uint64_t    vmm_get_phys(page_table_t* pml4, uint64_t vaddr);
+
+extern page_table_t* kernel_pml4;
 
 #endif

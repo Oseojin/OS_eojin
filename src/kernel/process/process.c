@@ -2,6 +2,7 @@
 #include "../../../includes/kheap.h"
 #include "../../../includes/utils.h"
 #include "../../../includes/gdt.h"
+#include "../../../includes/vmm.h"
 
 // 외부 함수
 extern void kprint(char* msg);
@@ -47,6 +48,9 @@ void create_kernel_process(void (*entry)())
     
     p->kernel_stack_base = (uint64_t)stack;
     p->kernel_stack_top = (uint64_t)stack + STACK_SIZE;
+    
+    // Kernel Process uses Kernel PML4
+    p->pml4 = (uint64_t)kernel_pml4;
 
     // 스택 포인터를 스택 끝으로 이동
     uint64_t rsp = p->kernel_stack_top;
@@ -103,6 +107,9 @@ void create_user_process(void (*entry)())
     
     p->kernel_stack_base = (uint64_t)kernel_stack;
     p->kernel_stack_top = (uint64_t)kernel_stack + STACK_SIZE;
+    
+    // User Process gets its own PML4
+    p->pml4 = (uint64_t)vmm_create_user_pml4();
 
     // 3. 트랩 프레임 생성 (커널 스택에 생성)
     uint64_t k_rsp = p->kernel_stack_top;
@@ -207,6 +214,12 @@ uint64_t schedule(uint64_t current_rsp)
     
     current_pid = next;
     processes[current_pid].state = PROCESS_RUNNING;
+    
+    // Switch PML4 (CR3)
+    if (processes[current_pid].pml4 != 0)
+    {
+        vmm_switch_pml4((page_table_t*)processes[current_pid].pml4);
+    }
     
     // TSS Update (Ring 3 -> Ring 0 전환 시 사용할 스택)
     if (processes[current_pid].kernel_stack_top != 0)
