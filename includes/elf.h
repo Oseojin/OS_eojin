@@ -2,6 +2,7 @@
 #define ELF_H
 
 #include <stdint.h>
+#include "vmm.h"
 
 // ELF64 자료형
 typedef uint64_t    Elf64_Addr;
@@ -88,6 +89,6 @@ typedef struct {
 // 함수 선언
 int     elf_check_file(Elf64_Ehdr* hdr);
 int     elf_check_supported(Elf64_Ehdr* hdr);
-void*   elf_load_file(void* file);
+void*   elf_load_file(page_table_t* pml4, void* file);
 
 #endif

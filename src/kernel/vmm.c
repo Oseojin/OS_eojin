@@ -95,9 +95,9 @@ void vmm_init()
     kernel_pml4 = (page_table_t*)pmm_alloc_block();
     memset(kernel_pml4, 0, PAGE_SIZE);
 
-    // Identity Mapping (0 ~ 128MB)
+    // Identity Mapping (0 ~ 512MB)
     // 커널 코드, 데이터, 비디오 메모리 등
-    uint64_t identity_map_end = 0x8000000; // 128MB
+    uint64_t identity_map_end = 0x20000000; // 512MB
 
     for (uint64_t addr = 0; addr < identity_map_end; addr += PAGE_SIZE)
     {

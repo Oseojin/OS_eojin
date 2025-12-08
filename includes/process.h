@@ -27,7 +27,7 @@ typedef struct {
 
 void    init_multitasking();
 void    create_kernel_process(void (*entry)());
-void    create_user_process(void (*entry)());
+void    create_user_process(void (*entry)(), uint64_t pml4);
 void    kill_current_process();
 uint64_t schedule(uint64_t current_rsp); // 컨텍스트 스위칭 요청
 

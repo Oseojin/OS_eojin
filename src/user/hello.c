@@ -22,7 +22,7 @@ void sys_exit() {
 
 // 엔트리 포인트
 void _start() {
-    // sys_print("Hello from ELF User Program!\n");
+    sys_print("Hello from ELF User Program!\n");
     sys_exit();
 }
 

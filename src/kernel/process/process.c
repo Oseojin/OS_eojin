@@ -82,7 +82,7 @@ void create_kernel_process(void (*entry)())
     kprint("\n");
 }
 
-void create_user_process(void (*entry)())
+void create_user_process(void (*entry)(), uint64_t pml4_phys_addr)
 {
     if (process_count >= MAX_PROCESSES)
     {
@@ -108,8 +108,8 @@ void create_user_process(void (*entry)())
     p->kernel_stack_base = (uint64_t)kernel_stack;
     p->kernel_stack_top = (uint64_t)kernel_stack + STACK_SIZE;
     
-    // User Process gets its own PML4
-    p->pml4 = (uint64_t)vmm_create_user_pml4();
+    // User Process gets its own PML4 (Passed argument)
+    p->pml4 = pml4_phys_addr;
 
     // 3. 트랩 프레임 생성 (커널 스택에 생성)
     uint64_t k_rsp = p->kernel_stack_top;

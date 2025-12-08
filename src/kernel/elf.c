@@ -1,11 +1,14 @@
 #include "../../includes/elf.h"
 #include "../../includes/utils.h"
 #include "../../includes/kheap.h"
+#include "../../includes/vmm.h" // For vmm_map_page
 
 // 외부 함수
 extern void kprint(char* message);
 extern void memcpy(char* dest, char* source, int nbytes);
 extern void* memset(void* dest, int val, uint64_t count);
+extern void* pmm_alloc_block();
+extern void pmm_free_block(void* p);
 
 int elf_check_file(Elf64_Ehdr* hdr)
 {
@@ -54,7 +57,7 @@ int elf_check_supported(Elf64_Ehdr* hdr)
 }
 
 // 파일 데이터(file_buffer)를 파싱하여 메모리에 로드하고 Entry Point 반환
-void* elf_load_file(void* file_buffer)
+void* elf_load_file(page_table_t* pml4, void* file_buffer)
 {
     Elf64_Ehdr* hdr = (Elf64_Ehdr*)file_buffer;
 
@@ -69,44 +72,58 @@ void* elf_load_file(void* file_buffer)
     {
         if (phdr[i].p_type == PT_LOAD)
         {
-            // 파일에서 세그먼트 데이터 위치
-            void*   segment_file_ptr = (void*)((uint64_t)file_buffer + phdr[i].p_offset); 
-            
-            // 메모리에 로드할 주소 (Virtual Address)
-            void*   segment_mem_ptr = (void*)phdr[i].p_vaddr;
-            
-            // 메모리 크기
+            uint64_t vaddr_start = phdr[i].p_vaddr;
             uint64_t mem_size = phdr[i].p_memsz;
-            // 파일 크기
             uint64_t file_size = phdr[i].p_filesz;
+            uint64_t file_offset = phdr[i].p_offset;
 
-            // 1. 파일 데이터 복사
-            memcpy((char*)segment_mem_ptr, (char*)segment_file_ptr, file_size);
+            // 페이지 단위로 루프
+            // 시작 주소가 페이지 정렬이 안 되어 있을 수 있으므로 내림
+            uint64_t vaddr = vaddr_start & ~(PAGE_SIZE - 1); 
+            // 끝 주소는 올림
+            uint64_t end_vaddr = (vaddr_start + mem_size + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 
-            // 2. BSS 영역 초기화 (메모리 크기가 파일 크기보다 크면 나머지는 0)
-            if (mem_size > file_size)
+            for (; vaddr < end_vaddr; vaddr += PAGE_SIZE)
             {
-                void* bss_ptr = (void*)((uint64_t)segment_mem_ptr + file_size);
-                memset(bss_ptr, 0, mem_size - file_size);
+                // 1. 물리 페이지 할당
+                uint64_t paddr = (uint64_t)pmm_alloc_block();
+                if (!paddr)
+                {
+                    kprint("ELF Load Error: OOM\n");
+                    return 0;
+                }
+
+                // 2. PML4 매핑 (User, RW, Present)
+                vmm_map_page(pml4, vaddr, paddr, PAGING_FLAG_PRESENT | PAGING_FLAG_WRITABLE | PAGING_FLAG_USER);
+
+                // 3. 데이터 복사 및 BSS 초기화
+                // 물리 주소(paddr)에 직접 씀 (커널은 1:1 매핑 사용 중)
+                memset((void*)paddr, 0, PAGE_SIZE); // 일단 0으로 초기화 (BSS 처리 포함)
+
+                // 복사할 범위 계산 (Overlap)
+                // [vaddr, vaddr + 4096)  <->  [vaddr_start, vaddr_start + file_size)
+                
+                uint64_t seg_data_start = vaddr_start;
+                uint64_t seg_data_end = vaddr_start + file_size;
+                
+                uint64_t page_start = vaddr;
+                uint64_t page_end = vaddr + PAGE_SIZE;
+
+                // 겹치는 구간 구하기 (Intersection)
+                uint64_t copy_start = (page_start < seg_data_start) ? seg_data_start : page_start;
+                uint64_t copy_end = (page_end > seg_data_end) ? seg_data_end : page_end;
+
+                if (copy_start < copy_end)
+                {
+                    uint64_t len = copy_end - copy_start;
+                    uint64_t file_src_offset = file_offset + (copy_start - vaddr_start);
+                    uint64_t page_dst_offset = copy_start - page_start;
+
+                    memcpy((char*)(paddr + page_dst_offset), (char*)((uint64_t)file_buffer + file_src_offset), len);
+                }
             }
-            
-            /*
-            kprint("ELF Segment Loaded at ");
-            char buf[32];
-            hex_to_ascii(phdr[i].p_vaddr, buf);
-            kprint(buf);
-            kprint("\n");
-            */
         }
     }
-
-    /*
-    kprint("ELF Entry: ");
-    char buf2[32];
-    hex_to_ascii(hdr->e_entry, buf2);
-    kprint(buf2);
-    kprint("\n");
-    */
 
     return (void*)hdr->e_entry;
 }

@@ -7,6 +7,7 @@
 #include "../../includes/fat.h"
 #include "../../includes/process.h"
 #include "../../includes/elf.h"
+#include "../../includes/vmm.h"
 
 // process.h
 #include "../../includes/process.h"
@@ -15,7 +16,7 @@ volatile char*  video_memory = (volatile char*)0xb8000;
 
 // 외부 함수 선언
 extern void     kprint(char* message);
-extern void     create_user_process(void (*entry)());
+// create_user_process는 process.h에 선언됨
 
 /*
 void task_a()
@@ -50,6 +51,7 @@ extern void     strcpy(char* dest, const char* src);
 extern void     print_memory_map();
 // pmm.h
 extern void     init_pmm();
+extern void*    pmm_alloc_block();
 // kheap.h
 extern void     init_kheap();
 extern void*    kmalloc(size_t size);
@@ -66,6 +68,7 @@ extern void     pic_remap();
 extern void     init_gdt();
 // vmm.c
 extern void     vmm_init();
+extern void     vmm_map_page(page_table_t* pml4, uint64_t vaddr, uint64_t paddr, uint64_t flags);
 // screen.c
 extern void     kprint_at(char* message, int col, int row);
 extern void     clear_screen();
@@ -300,15 +303,51 @@ void    user_input(char* input)
                     kprint(filename);
                     kprint("...\n");
 
+                    // VMM: 프로세스용 PML4 생성
+                    page_table_t* proc_pml4 = vmm_create_user_pml4();
+                    if (!proc_pml4) { kprint("exec: Failed to create PML4\n"); return; }
+
                     // ELF 확인 및 로드
-                    void* entry_point = (void*)load_addr;
+                    void* entry_point = (void*)0;
+                    
                     if (elf_check_file((Elf64_Ehdr*)load_addr))
                     {
-                        kprint("ELF Detected. Loading segments...\n");
-                        entry_point = elf_load_file((void*)load_addr);
+                        // kprint("ELF Detected. Loading segments...\n");
+                        entry_point = elf_load_file(proc_pml4, (void*)load_addr);
+                        if (!entry_point) { kprint("exec: ELF load failed.\n"); return; }
+                    }
+                    else
+                    {
+                        // kprint("Flat Binary Detected. Loading...\n");
+                        // Flat Binary: 0x10000000 (256MB)에 매핑하여 로드
+                        uint64_t flat_binary_vaddr = 0x10000000;
+                        uint64_t flat_binary_size = entry.file_size;
+
+                        // 페이지 단위로 루프
+                        for (uint64_t offset = 0; offset < flat_binary_size; offset += PAGE_SIZE)
+                        {
+                            uint64_t paddr = (uint64_t)pmm_alloc_block();
+                            if (!paddr) { kprint("exec: OOM for flat binary\n"); return; }
+                            
+                            // 데이터 복사 (임시 버퍼 -> 물리 메모리)
+                            // 커널은 1:1 매핑이므로 paddr에 직접 복사 가능
+                            
+                            // 복사할 크기 (마지막 페이지 처리)
+                            uint64_t copy_len = PAGE_SIZE;
+                            if (offset + PAGE_SIZE > flat_binary_size)
+                                copy_len = flat_binary_size - offset;
+                                
+                            // 메모리 초기화 (보안/BSS)
+                            memset((void*)paddr, 0, PAGE_SIZE);
+                            memcpy((char*)paddr, (char*)((uint64_t)load_addr + offset), copy_len);
+                            
+                            // PML4에 매핑 (User, RW)
+                            vmm_map_page(proc_pml4, flat_binary_vaddr + offset, paddr, PAGING_FLAG_PRESENT | PAGING_FLAG_WRITABLE | PAGING_FLAG_USER);
+                        }
+                        entry_point = (void*)flat_binary_vaddr;
                     }
 
-                    create_user_process((void (*)())entry_point);
+                    create_user_process((void (*)())entry_point, (uint64_t)proc_pml4);
 
                     kprint("Process Created.\n");
                     
