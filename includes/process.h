@@ -9,7 +9,8 @@
 typedef enum {
     PROCESS_READY,
     PROCESS_RUNNING,
-    PROCESS_WAITING
+    PROCESS_WAITING,
+    PROCESS_DEAD
 } process_state_t;
 
 typedef struct {
@@ -21,6 +22,7 @@ typedef struct {
 
 void    init_multitasking();
 void    create_kernel_process(void (*entry)());
+void    kill_current_process();
 uint64_t schedule(uint64_t current_rsp); // 컨텍스트 스위칭 요청
 
 #endif

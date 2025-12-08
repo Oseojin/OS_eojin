@@ -58,6 +58,14 @@ uint64_t isr_handler(registers_t* r)
     else if (r->int_no == 13)
     {
         kprint("GP Fault! Halting.\n");
+        kprint("RIP: ");
+        char buf[32];
+        hex_to_ascii(r->rip, buf);
+        kprint(buf);
+        kprint("  Err: ");
+        hex_to_ascii(r->err_code, buf);
+        kprint(buf);
+        kprint("\n");
         __asm__ volatile("hlt");
     }
     // 14: Page Fault
@@ -70,7 +78,20 @@ uint64_t isr_handler(registers_t* r)
     else if (r->int_no == 128)
     {
         // RAX: Syscall Number
-        if (r->rax == 1) // Print String
+        if (r->rax == 0) // Exit
+        {
+            // kprint("Syscall: Exit.\n");
+            kill_current_process();
+            next_rsp = schedule((uint64_t)r);
+            /*
+            kprint("Sch Ret: ");
+            char buf[32];
+            hex_to_ascii(next_rsp, buf);
+            kprint(buf);
+            kprint("\n");
+            */
+        }
+        else if (r->rax == 1) // Print String
         {
             char* msg = (char*)r->rbx;
             kprint(msg);

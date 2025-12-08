@@ -516,8 +516,6 @@ void    main()
 
     while(1)
     {
-        // kprint("M");
-        // for(int i=0; i<10000000; i++);
         __asm__ volatile("hlt");
     }
 }

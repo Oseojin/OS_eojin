@@ -67,29 +67,102 @@ void create_kernel_process(void (*entry)())
     process_count++;
     
     kprint("Created Process PID ");
-    char buf[16];
+    char buf[32];
     hex_to_ascii(p->pid, buf);
     kprint(buf);
     kprint("\n");
 }
 
+void kill_current_process()
+{
+    if (current_pid == -1) return;
+    
+    processes[current_pid].state = PROCESS_DEAD;
+    kprint("Process Killed PID: ");
+    char buf[32];
+    hex_to_ascii(current_pid, buf);
+    kprint(buf);
+    kprint("\n");
+    
+    // Force schedule will happen on next timer interrupt or we can trigger it.
+    // But here we are called from syscall handler, so we just set state.
+    // The ISR will call schedule() next.
+}
+
 uint64_t schedule(uint64_t current_rsp)
 {
-    if (process_count <= 1) return current_rsp; // Only kernel running
-
-    // Save current context
-    processes[current_pid].rsp = current_rsp;
-    if (processes[current_pid].state == PROCESS_RUNNING)
-        processes[current_pid].state = PROCESS_READY;
+    // Save current context (only if not dead)
+    if (processes[current_pid].state != PROCESS_DEAD)
+    {
+        processes[current_pid].rsp = current_rsp;
+        if (processes[current_pid].state == PROCESS_RUNNING)
+            processes[current_pid].state = PROCESS_READY;
+    }
 
     // Round Robin: Find next READY process
     int next = current_pid;
+    int loop_count = 0;
+    
     do {
         next++;
         if (next >= process_count) next = 0;
+        loop_count++;
+        // Infinite loop prevention if all are dead/waiting (should not happen with shell)
+        if (loop_count > MAX_PROCESSES + 1) return current_rsp; 
+        
     } while (processes[next].state != PROCESS_READY && next != current_pid);
 
-    if (next == current_pid) return current_rsp; // No other ready process
+    // If we found the same process and it is DEAD
+    if (next == current_pid && processes[next].state != PROCESS_READY)
+    {
+        // Fallback to Shell (PID 0) if valid
+        if (processes[0].state == PROCESS_READY || processes[0].state == PROCESS_RUNNING)
+        {
+            // kprint("Switching to Shell (PID 0)\n");
+            next = 0;
+            
+            // Debug Stack
+            /*
+            uint64_t* s = (uint64_t*)processes[0].rsp;
+            kprint("PID 0 RSP: ");
+            char buf[32];
+            hex_to_ascii((uint64_t)s, buf); kprint(buf);
+            
+            // registers_t structure:
+            // ds, rax..rdi, r8..r15, int_no, err_code, rip, cs, ...
+            // ds(1) + regs(15) + int_no(1) + err(1) = 18 qwords
+            // stack[18] = RIP, stack[19] = CS
+            
+            kprint(" RIP: ");
+            hex_to_ascii(s[18], buf); kprint(buf);
+            kprint(" CS: ");
+            hex_to_ascii(s[19], buf); kprint(buf);
+            kprint("\n");
+            */
+        }
+    }
+    
+    if (next != current_pid)
+    {
+        /*
+        if (next == 0)
+        {
+            uint64_t* s = (uint64_t*)processes[0].rsp;
+            kprint("To PID 0. RSP: ");
+            char buf[32];
+            hex_to_ascii((uint64_t)s, buf); kprint(buf);
+            kprint(" RIP: ");
+            hex_to_ascii(s[18], buf); kprint(buf);
+            kprint(" CS: ");
+            hex_to_ascii(s[19], buf); kprint(buf);
+            kprint(" RFLAGS: ");
+            hex_to_ascii(s[20], buf); kprint(buf);
+            kprint(" SS: ");
+            hex_to_ascii(s[22], buf); kprint(buf);
+            kprint("\n");
+        }
+        */
+    }
 
     current_pid = next;
     processes[current_pid].state = PROCESS_RUNNING;
