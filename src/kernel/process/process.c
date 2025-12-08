@@ -1,6 +1,7 @@
 #include "../../../includes/process.h"
 #include "../../../includes/kheap.h"
 #include "../../../includes/utils.h"
+#include "../../../includes/gdt.h"
 
 // 외부 함수
 extern void kprint(char* msg);
@@ -18,6 +19,8 @@ void init_multitasking()
     // PID 0 is the initial kernel task (will be captured on first schedule)
     processes[0].pid = 0;
     processes[0].state = PROCESS_RUNNING;
+    // PID 0는 초기 부팅 스택을 사용하므로 kernel_stack 정보를 알기 어렵거나 0x90000임.
+    // 하지만 PID 0로 돌아올 때는 TSS 업데이트가 필요 없을 수도 있음 (Ring 0 -> Ring 0).
     process_count = 1;
     current_pid = 0;
     
@@ -40,12 +43,12 @@ void create_kernel_process(void (*entry)())
     uint64_t* stack = (uint64_t*)kmalloc(STACK_SIZE);
     p->stack_base = (uint64_t)stack;
     
-    // 스택 포인터를 스택 끝으로 이동
-    uint64_t rsp = (uint64_t)stack + STACK_SIZE;
+    p->kernel_stack_base = (uint64_t)stack;
+    p->kernel_stack_top = (uint64_t)stack + STACK_SIZE;
 
-    // ISR 스택 프레임 시뮬레이션 (iretq가 복구할 내용)
-    // Stack grows DOWN. Pushing values.
-    
+    // 스택 포인터를 스택 끝으로 이동
+    uint64_t rsp = p->kernel_stack_top;
+
     // Ring 0 thread setup
     rsp -= 8; *((uint64_t*)rsp) = 0x10; // SS
     rsp -= 8; *((uint64_t*)rsp) = rsp + 16; // RSP (approx)
@@ -66,7 +69,65 @@ void create_kernel_process(void (*entry)())
     p->rsp = rsp;
     process_count++;
     
-    kprint("Created Process PID ");
+    kprint("Created Kernel Process PID ");
+    char buf[32];
+    hex_to_ascii(p->pid, buf);
+    kprint(buf);
+    kprint("\n");
+}
+
+void create_user_process(void (*entry)())
+{
+    if (process_count >= MAX_PROCESSES)
+    {
+        kprint("Max processes reached!\n");
+        return;
+    }
+
+    process_t* p = &processes[process_count];
+    p->pid = process_count;
+    p->state = PROCESS_READY;
+
+    // 1. 유저 스택 할당
+    uint64_t* user_stack = (uint64_t*)kmalloc(STACK_SIZE);
+    p->stack_base = (uint64_t)user_stack;
+    uint64_t user_rsp = (uint64_t)user_stack + STACK_SIZE;
+
+    // 2. 커널 스택 할당 (TSS용)
+    uint64_t* kernel_stack = (uint64_t*)kmalloc(STACK_SIZE);
+    p->kernel_stack_base = (uint64_t)kernel_stack;
+    p->kernel_stack_top = (uint64_t)kernel_stack + STACK_SIZE;
+
+    // 3. 트랩 프레임 생성 (커널 스택에 생성)
+    uint64_t k_rsp = p->kernel_stack_top;
+    
+    // User Mode IRETQ Frame
+    // SS (User Data 0x18 | 3 = 0x1B)
+    k_rsp -= 8; *((uint64_t*)k_rsp) = 0x1B; 
+    // RSP (User Stack)
+    k_rsp -= 8; *((uint64_t*)k_rsp) = user_rsp; 
+    // RFLAGS (IF=1, IOPL=0)
+    k_rsp -= 8; *((uint64_t*)k_rsp) = 0x202; 
+    // CS (User Code 0x20 | 3 = 0x23)
+    k_rsp -= 8; *((uint64_t*)k_rsp) = 0x23;  
+    // RIP (Entry)
+    k_rsp -= 8; *((uint64_t*)k_rsp) = (uint64_t)entry; 
+
+    // Context (Registers)
+    k_rsp -= 8; *((uint64_t*)k_rsp) = 0; // Error Code
+    k_rsp -= 8; *((uint64_t*)k_rsp) = 0; // Int No
+
+    // GP Registers
+    for (int i = 0; i < 16; i++)
+    {
+        k_rsp -= 8; *((uint64_t*)k_rsp) = 0;
+    }
+
+    p->rsp = k_rsp; 
+    
+    process_count++;
+    
+    kprint("Created User Process PID ");
     char buf[32];
     hex_to_ascii(p->pid, buf);
     kprint(buf);
@@ -77,7 +138,7 @@ extern char* fat_get_current_path();
 
 void kill_current_process()
 {
-    if (current_pid == -1) return;
+    if (current_pid == -1) return; 
     
     processes[current_pid].state = PROCESS_DEAD;
     kprint("Process Killed PID: ");
@@ -86,7 +147,7 @@ void kill_current_process()
     kprint(buf);
     kprint("\n");
     
-    // Reprint prompt
+    //Reprint prompt
     kprint("OS_eojin:");
     kprint(fat_get_current_path());
     kprint("> ");
@@ -125,54 +186,18 @@ uint64_t schedule(uint64_t current_rsp)
         // Fallback to Shell (PID 0) if valid
         if (processes[0].state == PROCESS_READY || processes[0].state == PROCESS_RUNNING)
         {
-            // kprint("Switching to Shell (PID 0)\n");
             next = 0;
-            
-            // Debug Stack
-            /*
-            uint64_t* s = (uint64_t*)processes[0].rsp;
-            kprint("PID 0 RSP: ");
-            char buf[32];
-            hex_to_ascii((uint64_t)s, buf); kprint(buf);
-            
-            // registers_t structure:
-            // ds, rax..rdi, r8..r15, int_no, err_code, rip, cs, ...
-            // ds(1) + regs(15) + int_no(1) + err(1) = 18 qwords
-            // stack[18] = RIP, stack[19] = CS
-            
-            kprint(" RIP: ");
-            hex_to_ascii(s[18], buf); kprint(buf);
-            kprint(" CS: ");
-            hex_to_ascii(s[19], buf); kprint(buf);
-            kprint("\n");
-            */
         }
     }
     
-    if (next != current_pid)
-    {
-        /*
-        if (next == 0)
-        {
-            uint64_t* s = (uint64_t*)processes[0].rsp;
-            kprint("To PID 0. RSP: ");
-            char buf[32];
-            hex_to_ascii((uint64_t)s, buf); kprint(buf);
-            kprint(" RIP: ");
-            hex_to_ascii(s[18], buf); kprint(buf);
-            kprint(" CS: ");
-            hex_to_ascii(s[19], buf); kprint(buf);
-            kprint(" RFLAGS: ");
-            hex_to_ascii(s[20], buf); kprint(buf);
-            kprint(" SS: ");
-            hex_to_ascii(s[22], buf); kprint(buf);
-            kprint("\n");
-        }
-        */
-    }
-
     current_pid = next;
     processes[current_pid].state = PROCESS_RUNNING;
+    
+    // TSS Update (Ring 3 -> Ring 0 전환 시 사용할 스택)
+    if (processes[current_pid].kernel_stack_top != 0)
+    {
+        set_tss_rsp0(processes[current_pid].kernel_stack_top);
+    }
     
     return processes[current_pid].rsp;
 }

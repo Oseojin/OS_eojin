@@ -12,13 +12,13 @@ setup_paging:
     ; PML4 테이블 설정 (0x1000)
     ; 첫 번째 엔트리 -> PDPT(0x2000)
     mov eax, 0x2000
-    or eax, 0b11            ; Present(1) | Writable(1)
+    or eax, 0b111           ; Present(1) | Writable(1) | User(1)
     mov [0x1000], eax
 
     ; PDPT 테이블 설정 (0x2000)
     ; 첫 번째 엔트리 -> PD(0x3000)
     mov eax, 0x3000
-    or eax, 0b11
+    or eax, 0b111           ; Present(1) | Writable(1) | User(1)
     mov [0x2000], eax
 
     ; PD 테이블 설정 (0x3000) - Huge Page 사용
@@ -27,7 +27,7 @@ setup_paging:
     ; 첫 번째 엔트리: 물리주소 0 ~ 2MB 매핑
     mov edi, 0x3000         ; PD 테이블 주소
     mov eax, 0x0            ; 물리주소 0번지
-    or eax, 0b10000011      ; Present(1) | Writable(1) | Huge Page(1)
+    or eax, 0b10000111      ; Present(1) | Writable(1) | User(1) | Huge Page(1)
     mov ecx, 512            ; 512개 엔트리 채우기
 
 .fill_pd:
