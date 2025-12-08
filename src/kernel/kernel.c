@@ -64,6 +64,8 @@ extern uint8_t  inb(uint16_t port);
 extern void     pic_remap();
 // gdt.c
 extern void     init_gdt();
+// vmm.c
+extern void     vmm_init();
 // screen.c
 extern void     kprint_at(char* message, int col, int row);
 extern void     clear_screen();
@@ -504,6 +506,9 @@ void    main()
 
     // PMM 초기화
     init_pmm();
+
+    // VMM 초기화
+    vmm_init();
 
     // Heap 초기화
     init_kheap();
