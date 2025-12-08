@@ -290,15 +290,16 @@ void    user_input(char* input)
                     kprint(size_buf);
                     kprint(" bytes at 0x4000000\n");
 
-                    kprint("Executing ");
+                    kprint("Spawning Process for ");
                     kprint(filename);
                     kprint("...\n");
 
                     // 함수 포인터로 형변환 후 실행
-                    void (*prog)() = (void (*)())load_addr;
-                    prog();
+                    // void (*prog)() = (void (*)())load_addr;
+                    // prog();
+                    create_kernel_process((void (*)())load_addr);
 
-                    kprint("Returned from User Program.\n");
+                    kprint("Process Created.\n");
                 }
             }
             else

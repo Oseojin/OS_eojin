@@ -31,30 +31,18 @@ $(BUILD_DIR)/system.bin: $(BUILD_DIR)/loader.bin $(BUILD_DIR)/kernel.bin
 	cat $^ > $@
 
 $(BUILD_DIR)/os-image.bin: $(BUILD_DIR)/boot_fat16.bin $(BUILD_DIR)/system.bin $(BUILD_DIR)/user.bin
-	# 빈 파일 생성 (10MB)
 	dd if=/dev/zero of=$@ bs=1k count=$(DISK_SIZE_KB)
 
-	# FAT16 포맷 (mkfs.fat)
-	# -F 16: FAT16
-	# -R 1: Reserved Sector 1개 (부트섹터용)
 	mkfs.fat -F 16 -R 1 -s 1 -S 512 -r 512 -n "OS_EOJIN" $@
 
-	# 부트로더 덮어쓰기 (conv=notrunc: 파일 크기 유지)
-	# mkfs.fat에서 생성한 BPB 정보를 유지하면서 코드만 복사해야함.
-	# 부트섹터의 앞부분 (JMP 명령, 3바이트) 복사
 	dd if=$(BUILD_DIR)/boot_fat16.bin of=$@ bs=1 count=3 conv=notrunc
 
-	# 부트섹터의 뒷부분 (BPB 이후 코드, 62바이트부터 끝까지) 복사
 	dd if=$(BUILD_DIR)/boot_fat16.bin of=$@ bs=1 skip=62 seek=62 conv=notrunc
 
-	# 파일 복사 (mcopy)
-	# -i: 이미지 파일 지정
-	# :: 경로 사용
 	mcopy -i $@ $(BUILD_DIR)/system.bin ::LOADER.BIN
 	mcopy -i $@ $(BUILD_DIR)/user.bin ::USER.BIN
 	mcopy -i $@ $(BUILD_DIR)/hello.txt ::HELLO.TXT
 	
-	# 테스트 디렉토리 생성
 	mmd -i $@ ::TESTDIR
 	mcopy -i $@ $(BUILD_DIR)/hello.txt ::TESTDIR/INNER.TXT
 
