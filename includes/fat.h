@@ -66,5 +66,7 @@ char*   fat_get_current_path();
 uint16_t fat_get_current_cluster();
 uint16_t fat_allocate_cluster();
 int     fat_create_entry(char* filename, uint8_t attr, uint16_t cluster, uint32_t size);
+int     fat_delete_file(char* filename);
+int     fat_delete_dir(char* dirname);
 
 #endif

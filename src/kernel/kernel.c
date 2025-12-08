@@ -115,6 +115,8 @@ void    user_input(char* input)
         kprint("    cd [dir]        - Change Directory\n");
         kprint("    touch [file]    - Create Empty File\n");
         kprint("    mkdir [dir]     - Create Directory\n");
+        kprint("    rm [file]       - Remove File\n");
+        kprint("    rmdir [dir]     - Remove Directory\n");
     }
     else if (strcmp(command, "clear") == 0)
     {
@@ -459,6 +461,34 @@ void    user_input(char* input)
                     kprint("Failed to create entry.\n");
                 }
             }
+        }
+    }
+    else if (strcmp(command, "rm") == 0)
+    {
+        char    filename[32];
+        int     arg_offset = offset;
+
+        if (!get_next_token(input, filename, &arg_offset))
+        {
+            kprint("Usage: rm <filename>\n");
+        }
+        else
+        {
+            fat_delete_file(filename);
+        }
+    }
+    else if (strcmp(command, "rmdir") == 0)
+    {
+        char    dirname[32];
+        int     arg_offset = offset;
+
+        if (!get_next_token(input, dirname, &arg_offset))
+        {
+            kprint("Usage: rmdir <dirname>\n");
+        }
+        else
+        {
+            fat_delete_dir(dirname);
         }
     }
     // alloc test

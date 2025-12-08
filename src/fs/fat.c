@@ -560,3 +560,204 @@ int fat_create_entry(char* filename, uint8_t attr, uint16_t cluster, uint32_t si
     kprint("Directory full or error.\n");
     return 0;
 }
+
+void fat_free_cluster_chain(uint16_t cluster)
+{
+    if (cluster < 2) return;
+
+    uint16_t curr = cluster;
+    while (curr < 0xFFF8)
+    {
+        uint16_t next = fat_next_cluster(curr);
+        fat_write_fat_entry(curr, 0x0000); // Free
+        curr = next;
+    }
+}
+
+// Check if directory is empty (only . and .. allowed)
+int fat_is_dir_empty(uint16_t cluster)
+{
+    uint8_t* buffer = (uint8_t*)kmalloc(512);
+    if (!buffer) return 0;
+
+    int is_empty = 1;
+    for (int i = 0; ; i++)
+    {
+        if (!fat_read_dir_sector(cluster, i, buffer)) break;
+
+        fat_dir_entry_t* entries = (fat_dir_entry_t*)buffer;
+        for (int j = 0; j < 16; j++)
+        {
+            if (entries[j].name[0] == 0x00) 
+            {
+                kfree(buffer);
+                return is_empty; // End of dir
+            }
+            if (entries[j].name[0] == 0xE5) continue; // Deleted
+            
+            // Check for . and ..
+            if (entries[j].name[0] == '.')
+            {
+                if (entries[j].name[1] == ' ' || (entries[j].name[1] == '.' && entries[j].name[2] == ' '))
+                {
+                    continue; // Skip . and ..
+                }
+            }
+
+            // Found actual file/dir
+            is_empty = 0;
+            kfree(buffer);
+            return 0;
+        }
+    }
+    kfree(buffer);
+    return is_empty;
+}
+
+int fat_delete_file(char* filename)
+{
+    if (!is_fat_initialized) return 0;
+
+    uint8_t* buffer = (uint8_t*)kmalloc(512);
+    int sector_idx = 0;
+
+    while (1)
+    {
+        if (!fat_read_dir_sector(current_dir_cluster, sector_idx, buffer)) break;
+
+        fat_dir_entry_t* entries = (fat_dir_entry_t*)buffer;
+        int found = -1;
+
+        for (int k = 0; k < 16; k++)
+        {
+            if (entries[k].name[0] == 0x00) break; // End
+            if (entries[k].name[0] == 0xE5) continue;
+            if (entries[k].attributes & ATTR_VOLUME_ID) continue;
+
+            if (fat_filename_match((char*)entries[k].name, (char*)entries[k].ext, filename))
+            {
+                if (entries[k].attributes & ATTR_DIRECTORY)
+                {
+                    kprint("Error: Is a directory.\n");
+                    kfree(buffer);
+                    return 0;
+                }
+                found = k;
+                break;
+            }
+        }
+
+        if (found != -1)
+        {
+            // Calculate LBA to write back
+            uint32_t lba = 0;
+            if (current_dir_cluster == 0)
+            {
+                lba = root_dir_sector + sector_idx;
+            }
+            else
+            {
+                int spc = fat_info.sectors_per_cluster;
+                int cluster_steps = sector_idx / spc;
+                int sector_offset = sector_idx % spc;
+                uint16_t curr = current_dir_cluster;
+                for (int s = 0; s < cluster_steps; s++) curr = fat_next_cluster(curr);
+                lba = fat_lba_of_cluster(curr) + sector_offset;
+            }
+
+            // Free Clusters
+            fat_free_cluster_chain(entries[found].first_cluster_low);
+
+            // Mark deleted
+            entries[found].name[0] = 0xE5;
+
+            // Write back
+            ata_write_sector(lba, buffer);
+            kfree(buffer);
+            kprint("File deleted.\n");
+            return 1;
+        }
+        sector_idx++;
+    }
+
+    kfree(buffer);
+    kprint("File not found.\n");
+    return 0;
+}
+
+int fat_delete_dir(char* dirname)
+{
+    if (!is_fat_initialized) return 0;
+
+    uint8_t* buffer = (uint8_t*)kmalloc(512);
+    int sector_idx = 0;
+
+    while (1)
+    {
+        if (!fat_read_dir_sector(current_dir_cluster, sector_idx, buffer)) break;
+
+        fat_dir_entry_t* entries = (fat_dir_entry_t*)buffer;
+        int found = -1;
+
+        for (int k = 0; k < 16; k++)
+        {
+            if (entries[k].name[0] == 0x00) break;
+            if (entries[k].name[0] == 0xE5) continue;
+
+            if (fat_filename_match((char*)entries[k].name, (char*)entries[k].ext, dirname))
+            {
+                if (!(entries[k].attributes & ATTR_DIRECTORY))
+                {
+                    kprint("Error: Not a directory.\n");
+                    kfree(buffer);
+                    return 0;
+                }
+                found = k;
+                break;
+            }
+        }
+
+        if (found != -1)
+        {
+            // Check if empty
+            if (!fat_is_dir_empty(entries[found].first_cluster_low))
+            {
+                kprint("Error: Directory not empty.\n");
+                kfree(buffer);
+                return 0;
+            }
+
+            // Calculate LBA
+            uint32_t lba = 0;
+            if (current_dir_cluster == 0)
+            {
+                lba = root_dir_sector + sector_idx;
+            }
+            else
+            {
+                int spc = fat_info.sectors_per_cluster;
+                int cluster_steps = sector_idx / spc;
+                int sector_offset = sector_idx % spc;
+                uint16_t curr = current_dir_cluster;
+                for (int s = 0; s < cluster_steps; s++) curr = fat_next_cluster(curr);
+                lba = fat_lba_of_cluster(curr) + sector_offset;
+            }
+
+            // Free Clusters
+            fat_free_cluster_chain(entries[found].first_cluster_low);
+
+            // Mark deleted
+            entries[found].name[0] = 0xE5;
+
+            ata_write_sector(lba, buffer);
+            kfree(buffer);
+            kprint("Directory deleted.\n");
+            return 1;
+        }
+        sector_idx++;
+    }
+
+    kfree(buffer);
+    kprint("Directory not found.\n");
+    return 0;
+}
