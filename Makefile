@@ -4,18 +4,30 @@ SRC_KERNEL = src/kernel
 SRC_DRIVERS = src/drivers
 SRC_FS = src/fs
 SRC_PROCESS = src/kernel/process
+SRC_CPU = src/kernel/cpu
 
 KERNEL_SRCS = $(wildcard $(SRC_KERNEL)/*.c)
 DRIVER_SRCS = $(wildcard $(SRC_DRIVERS)/*.c)
 FS_SRCS = $(wildcard $(SRC_FS)/*.c)
 PROCESS_SRCS = $(wildcard $(SRC_PROCESS)/*.c)
-ASM_SRCS = $(filter-out $(SRC_KERNEL)/kernel_entry.asm, $(wildcard $(SRC_KERNEL)/*.asm))
+CPU_SRCS = $(wildcard $(SRC_CPU)/*.c)
+ASM_SRCS = $(filter-out $(SRC_KERNEL)/kernel_entry.asm, $(wildcard $(SRC_KERNEL)/*.asm) $(wildcard $(SRC_CPU)/*.asm))
 
 KERNEL_OBJS = $(patsubst $(SRC_KERNEL)/%.c, $(BUILD_DIR)/%.o, $(KERNEL_SRCS))
 DRIVER_OBJS = $(patsubst $(SRC_DRIVERS)/%.c, $(BUILD_DIR)/%.o, $(DRIVER_SRCS))
 FS_OBJS = $(patsubst $(SRC_FS)/%.c, $(BUILD_DIR)/%.o, $(FS_SRCS))
 PROCESS_OBJS = $(patsubst $(SRC_PROCESS)/%.c, $(BUILD_DIR)/%.o, $(PROCESS_SRCS))
-ASM_OBJS = $(patsubst $(SRC_KERNEL)/%.asm, $(BUILD_DIR)/%.o, $(ASM_SRCS))
+CPU_OBJS = $(patsubst $(SRC_CPU)/%.c, $(BUILD_DIR)/%.o, $(CPU_SRCS))
+ASM_OBJS = $(patsubst $(SRC_KERNEL)/%.asm, $(BUILD_DIR)/%.o, $(patsubst $(SRC_CPU)/%.asm, $(BUILD_DIR)/%.o, $(ASM_SRCS)))
+
+# ASM_OBJS is tricky with patsubst because source paths vary.
+# Let's simplify ASM object generation rule.
+# ASM sources are in src/kernel/ and src/kernel/cpu/
+
+ASM_KERNEL_SRCS = $(wildcard $(SRC_KERNEL)/*.asm)
+ASM_CPU_SRCS = $(wildcard $(SRC_CPU)/*.asm)
+ASM_OBJS = $(patsubst $(SRC_KERNEL)/%.asm, $(BUILD_DIR)/%.o, $(filter-out $(SRC_KERNEL)/kernel_entry.asm, $(ASM_KERNEL_SRCS))) \
+           $(patsubst $(SRC_CPU)/%.asm, $(BUILD_DIR)/%.o, $(ASM_CPU_SRCS))
 
 DISK_SIZE_KB = 10240
 
@@ -55,14 +67,17 @@ $(BUILD_DIR)/boot_fat16.bin: $(SRC_BOOT)/boot_fat16.asm
 $(BUILD_DIR)/loader.bin: $(SRC_BOOT)/loader.asm
 	nasm -f bin $< -o $@
 
-$(BUILD_DIR)/kernel.bin: $(BUILD_DIR)/kernel_entry.o $(KERNEL_OBJS) $(DRIVER_OBJS) $(FS_OBJS) $(PROCESS_OBJS) $(ASM_OBJS)
-	ld -m elf_x86_64 -o $(BUILD_DIR)/kernel.elf -Ttext 0x8600 $(BUILD_DIR)/kernel_entry.o $(KERNEL_OBJS) $(DRIVER_OBJS) $(FS_OBJS) $(PROCESS_OBJS) $(ASM_OBJS)
+$(BUILD_DIR)/kernel.bin: $(BUILD_DIR)/kernel_entry.o $(KERNEL_OBJS) $(DRIVER_OBJS) $(FS_OBJS) $(PROCESS_OBJS) $(CPU_OBJS) $(ASM_OBJS)
+	ld -m elf_x86_64 -o $(BUILD_DIR)/kernel.elf -Ttext 0x8600 $(BUILD_DIR)/kernel_entry.o $(KERNEL_OBJS) $(DRIVER_OBJS) $(FS_OBJS) $(PROCESS_OBJS) $(CPU_OBJS) $(ASM_OBJS)
 	objcopy -O binary $(BUILD_DIR)/kernel.elf $@
 
 $(BUILD_DIR)/kernel_entry.o: $(SRC_KERNEL)/kernel_entry.asm
 	nasm -f elf64 $< -o $@
 
 $(BUILD_DIR)/%.o: $(SRC_KERNEL)/%.asm
+	nasm -f elf64 $< -o $@
+
+$(BUILD_DIR)/%.o: $(SRC_CPU)/%.asm
 	nasm -f elf64 $< -o $@
 
 $(BUILD_DIR)/%.o: $(SRC_KERNEL)/%.c
@@ -75,6 +90,9 @@ $(BUILD_DIR)/%.o: $(SRC_DRIVERS)/%.c
 	gcc -m64 -ffreestanding -mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -fno-pie -c $< -o $@
 
 $(BUILD_DIR)/%.o: $(SRC_PROCESS)/%.c
+	gcc -m64 -ffreestanding -mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -fno-pie -c $< -o $@
+
+$(BUILD_DIR)/%.o: $(SRC_CPU)/%.c
 	gcc -m64 -ffreestanding -mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -fno-pie -c $< -o $@
 
 clean:

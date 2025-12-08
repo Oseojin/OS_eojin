@@ -60,6 +60,8 @@ extern void     outb(uint16_t port, uint8_t data);
 extern uint8_t  inb(uint16_t port);
 // pic.c
 extern void     pic_remap();
+// gdt.c
+extern void     init_gdt();
 // screen.c
 extern void     kprint_at(char* message, int col, int row);
 extern void     clear_screen();
@@ -489,6 +491,9 @@ void    main()
     pic_remap(); // PIC 초기화 및 리매핑
 
     kprint("init & remap\n");
+
+    // GDT & TSS 초기화
+    init_gdt();
 
     // PMM 초기화
     init_pmm();
