@@ -300,6 +300,9 @@ void    user_input(char* input)
                     create_kernel_process((void (*)())load_addr);
 
                     kprint("Process Created.\n");
+                    
+                    // Don't print prompt here, wait for process exit
+                    return;
                 }
             }
             else

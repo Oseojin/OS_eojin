@@ -73,6 +73,8 @@ void create_kernel_process(void (*entry)())
     kprint("\n");
 }
 
+extern char* fat_get_current_path();
+
 void kill_current_process()
 {
     if (current_pid == -1) return;
@@ -83,6 +85,11 @@ void kill_current_process()
     hex_to_ascii(current_pid, buf);
     kprint(buf);
     kprint("\n");
+    
+    // Reprint prompt
+    kprint("OS_eojin:");
+    kprint(fat_get_current_path());
+    kprint("> ");
     
     // Force schedule will happen on next timer interrupt or we can trigger it.
     // But here we are called from syscall handler, so we just set state.
