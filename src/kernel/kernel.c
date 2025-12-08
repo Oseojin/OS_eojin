@@ -62,6 +62,7 @@ extern void     ata_write_sector(uint32_t lba, uint8_t* data);
 // ports.c
 extern void     outb(uint16_t port, uint8_t data);
 extern uint8_t  inb(uint16_t port);
+extern void     outw(uint16_t port, uint16_t data);
 // pic.c
 extern void     pic_remap();
 // gdt.c
@@ -102,7 +103,7 @@ void    user_input(char* input)
         kprint("Available commands:\n");
         kprint("    help            - Show this list\n");
         kprint("    clear           - Clear the screen\n");
-        kprint("    halt            - Halt the CPU\n");
+        kprint("    shutdown        - Power off the system\n");
         kprint("    memory          - Show Memory Map\n");
         kprint("    echo [message]  - Print message\n");
         kprint("    write [data]    - Write Data to Disk\n");
@@ -119,10 +120,20 @@ void    user_input(char* input)
     {
         clear_screen();
     }
-    else if (strcmp(command, "halt") == 0)
+    else if (strcmp(command, "shutdown") == 0 || strcmp(command, "halt") == 0)
     {
-        kprint("Halting CPU. Bye!\n");
-        __asm__ volatile("hlt");
+        kprint("Shutting down...\n");
+        
+        // Try QEMU Shutdown (ISA Debug Exit)
+        // Older QEMU / Bochs
+        outw(0xB004, 0x2000);
+        // Newer QEMU
+        outw(0x604, 0x2000);
+
+        // Fallback for real hardware or if QEMU shutdown fails
+        kprint("It is now safe to turn off your computer.\n");
+        __asm__ volatile("cli");
+        while(1) { __asm__ volatile("hlt"); }
     }
     else if (strcmp(command, "memory") == 0)
     {
