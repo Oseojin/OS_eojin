@@ -71,7 +71,16 @@ uint64_t isr_handler(registers_t* r)
     // 14: Page Fault
     else if (r->int_no == 14)
     {
+        uint64_t cr2;
+        __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
+        
         kprint("Page Fault! Halting.\n");
+        kprint("CR2: ");
+        char buf[32];
+        hex_to_ascii(cr2, buf);
+        kprint(buf);
+        kprint("\n");
+        
         __asm__ volatile("hlt");
     }
     // System Call (0x80)

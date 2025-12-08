@@ -32,17 +32,17 @@ ASM_OBJS = $(patsubst $(SRC_KERNEL)/%.asm, $(BUILD_DIR)/%.o, $(filter-out $(SRC_
 DISK_SIZE_KB = 10240
 
 run: $(BUILD_DIR)/os-image.bin
-	qemu-system-x86_64 -drive file=$<,format=raw,index=0,media=disk
+	qemu-system-x86_64 -m 512M -drive file=$<,format=raw,index=0,media=disk
 
 rerun: clean $(BUILD_DIR)/os-image.bin
-	qemu-system-x86_64 -hda $(BUILD_DIR)/os-image.bin
+	qemu-system-x86_64 -m 512M -hda $(BUILD_DIR)/os-image.bin
 
 all: $(BUILD_DIR)/os-image.bin
 
 $(BUILD_DIR)/system.bin: $(BUILD_DIR)/loader.bin $(BUILD_DIR)/kernel.bin
 	cat $^ > $@
 
-$(BUILD_DIR)/os-image.bin: $(BUILD_DIR)/boot_fat16.bin $(BUILD_DIR)/system.bin $(BUILD_DIR)/user.bin
+$(BUILD_DIR)/os-image.bin: $(BUILD_DIR)/boot_fat16.bin $(BUILD_DIR)/system.bin $(BUILD_DIR)/user.bin $(BUILD_DIR)/hello.elf
 	dd if=/dev/zero of=$@ bs=1k count=$(DISK_SIZE_KB)
 
 	mkfs.fat -F 16 -R 1 -s 1 -S 512 -r 512 -n "OS_EOJIN" $@
@@ -53,6 +53,7 @@ $(BUILD_DIR)/os-image.bin: $(BUILD_DIR)/boot_fat16.bin $(BUILD_DIR)/system.bin $
 
 	mcopy -i $@ $(BUILD_DIR)/system.bin ::LOADER.BIN
 	mcopy -i $@ $(BUILD_DIR)/user.bin ::USER.BIN
+	mcopy -i $@ $(BUILD_DIR)/hello.elf ::HELLO.ELF
 	mcopy -i $@ $(BUILD_DIR)/hello.txt ::HELLO.TXT
 	
 	mmd -i $@ ::TESTDIR
@@ -60,6 +61,14 @@ $(BUILD_DIR)/os-image.bin: $(BUILD_DIR)/boot_fat16.bin $(BUILD_DIR)/system.bin $
 
 $(BUILD_DIR)/user.bin: src/user/user.asm
 	nasm -f bin $< -o $@
+
+# ELF User Program
+$(BUILD_DIR)/hello.o: src/user/hello.c
+	gcc -m64 -ffreestanding -fno-pie -c $< -o $@
+
+$(BUILD_DIR)/hello.elf: $(BUILD_DIR)/hello.o
+	# Link at 0x1000000 (16MB), Entry: _start
+	ld -m elf_x86_64 -Ttext 0x1000000 -e _start -o $@ $<
 
 $(BUILD_DIR)/boot_fat16.bin: $(SRC_BOOT)/boot_fat16.asm
 	nasm -f bin $< -o $@

@@ -6,6 +6,7 @@
 #include "../../includes/ata.h"
 #include "../../includes/fat.h"
 #include "../../includes/process.h"
+#include "../../includes/elf.h"
 
 // process.h
 #include "../../includes/process.h"
@@ -297,10 +298,15 @@ void    user_input(char* input)
                     kprint(filename);
                     kprint("...\n");
 
-                    // 함수 포인터로 형변환 후 실행
-                    // void (*prog)() = (void (*)())load_addr;
-                    // prog();
-                    create_user_process((void (*)())load_addr);
+                    // ELF 확인 및 로드
+                    void* entry_point = (void*)load_addr;
+                    if (elf_check_file((Elf64_Ehdr*)load_addr))
+                    {
+                        kprint("ELF Detected. Loading segments...\n");
+                        entry_point = elf_load_file((void*)load_addr);
+                    }
+
+                    create_user_process((void (*)())entry_point);
 
                     kprint("Process Created.\n");
                     

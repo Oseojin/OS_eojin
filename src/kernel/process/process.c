@@ -27,6 +27,8 @@ void init_multitasking()
     kprint("Multitasking Initialized.\n");
 }
 
+extern void* pmm_alloc_block();
+
 void create_kernel_process(void (*entry)())
 {
     if (process_count >= MAX_PROCESSES)
@@ -39,8 +41,8 @@ void create_kernel_process(void (*entry)())
     p->pid = process_count;
     p->state = PROCESS_READY;
 
-    // 스택 할당
-    uint64_t* stack = (uint64_t*)kmalloc(STACK_SIZE);
+    // 스택 할당 (PMM 직접 사용)
+    uint64_t* stack = (uint64_t*)pmm_alloc_block();
     p->stack_base = (uint64_t)stack;
     
     p->kernel_stack_base = (uint64_t)stack;
@@ -89,12 +91,16 @@ void create_user_process(void (*entry)())
     p->state = PROCESS_READY;
 
     // 1. 유저 스택 할당
-    uint64_t* user_stack = (uint64_t*)kmalloc(STACK_SIZE);
+    uint64_t* user_stack = (uint64_t*)pmm_alloc_block();
+    if (!user_stack) { kprint("Proc Alloc Fail: User Stack\n"); return; }
+    
     p->stack_base = (uint64_t)user_stack;
     uint64_t user_rsp = (uint64_t)user_stack + STACK_SIZE;
 
     // 2. 커널 스택 할당 (TSS용)
-    uint64_t* kernel_stack = (uint64_t*)kmalloc(STACK_SIZE);
+    uint64_t* kernel_stack = (uint64_t*)pmm_alloc_block();
+    if (!kernel_stack) { kprint("Proc Alloc Fail: Kernel Stack\n"); return; }
+    
     p->kernel_stack_base = (uint64_t)kernel_stack;
     p->kernel_stack_top = (uint64_t)kernel_stack + STACK_SIZE;
 
@@ -106,6 +112,15 @@ void create_user_process(void (*entry)())
     k_rsp -= 8; *((uint64_t*)k_rsp) = 0x1B; 
     // RSP (User Stack)
     k_rsp -= 8; *((uint64_t*)k_rsp) = user_rsp; 
+    
+    /*
+    kprint("User RSP: ");
+    char buf2[32];
+    hex_to_ascii(user_rsp, buf2);
+    kprint(buf2);
+    kprint("\n");
+    */
+
     // RFLAGS (IF=1, IOPL=0)
     k_rsp -= 8; *((uint64_t*)k_rsp) = 0x202; 
     // CS (User Code 0x20 | 3 = 0x23)

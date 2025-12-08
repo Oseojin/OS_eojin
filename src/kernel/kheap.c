@@ -29,6 +29,12 @@ void    init_kheap()
 
 void*   kmalloc(size_t size)
 {
+    /*
+    kprint("kmalloc req: ");
+    char buf[32];
+    hex_to_ascii(size, buf); kprint(buf); kprint("\n");
+    */
+
     if (size == 0)
     {
         return 0;

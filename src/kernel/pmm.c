@@ -52,8 +52,25 @@ void    init_pmm()
     // Usable 영역만 0(Free)로 마킹
     for (int i = 0; i < entry_count; i++)
     {
+        /*
+        kprint("Map: Base ");
+        char buf[32];
+        hex_to_ascii(entries[i].base_addr, buf); kprint(buf);
+        kprint(" Len ");
+        hex_to_ascii(entries[i].length, buf); kprint(buf);
+        kprint(" Type ");
+        hex_to_ascii(entries[i].type, buf); kprint(buf);
+        kprint("\n");
+        */
+
         if (entries[i].type == 1)
         {
+            /*
+            kprint("Usable Mem: Base ");
+            // ...
+            kprint("\n");
+            */
+
             uint64_t    start_block = entries[i].base_addr / BLOCK_SIZE;
             uint64_t    num_blocks = entries[i].length / BLOCK_SIZE;
 
@@ -65,8 +82,8 @@ void    init_pmm()
     }
 
     // 커널이 사용하는 영역, 비트맵 자체 영역 등 보호
-    // 0 ~ 4MB 구간을 Safe Zone으로 설정
-    uint64_t    reserved_blocks = (0x400000) / BLOCK_SIZE; // 4MB
+    // 0 ~ 32MB 구간을 Safe Zone으로 설정 (커널, 힙 충돌 방지)
+    uint64_t    reserved_blocks = (0x2000000) / BLOCK_SIZE; // 32MB
     for (uint64_t i = 0; i < reserved_blocks; i++)
     {
         SET_BIT(i);
@@ -77,6 +94,10 @@ void    init_pmm()
     hex_to_ascii(max_addr, buf);
     kprint(buf);
     kprint("\n");
+    
+    // Debug Bitmap
+    // kprint("Bitmap[32]: ");
+    // hex_to_ascii(bitmap[32], buf); kprint(buf); kprint("\n");
 }
 
 // 블록 할당
@@ -87,10 +108,19 @@ void*   pmm_alloc_block()
         if (!TEST_BIT(i)) // Free block found
         {
             SET_BIT(i);
+            /*
+            kprint("PMM Alloc: ");
+            char buf[32];
+            hex_to_ascii(i * BLOCK_SIZE, buf); kprint(buf); kprint("\n");
+            */
             return (void*)(i * BLOCK_SIZE);
         }
     }
-    kprint("PMM: Out of Memory!\n");
+    kprint("PMM Alloc Failed. Total: ");
+    char buf[32];
+    hex_to_ascii(total_blocks, buf); kprint(buf);
+    kprint("\n");
+    
     return 0;
 }
 
