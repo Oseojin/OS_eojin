@@ -1,4 +1,7 @@
 BUILD_DIR = build
+# Ensure build directory exists automatically
+$(shell mkdir -p $(BUILD_DIR))
+
 SRC_BOOT = src/boot
 SRC_KERNEL = src/kernel
 SRC_DRIVERS = src/drivers
@@ -31,13 +34,13 @@ ASM_OBJS = $(patsubst $(SRC_KERNEL)/%.asm, $(BUILD_DIR)/%.o, $(filter-out $(SRC_
 
 DISK_SIZE_KB = 10240
 
+all: $(BUILD_DIR)/os-image.bin
+
 run: $(BUILD_DIR)/os-image.bin
 	qemu-system-x86_64 -m 512M -drive file=$<,format=raw,index=0,media=disk
 
 rerun: clean $(BUILD_DIR)/os-image.bin
 	qemu-system-x86_64 -m 512M -hda $(BUILD_DIR)/os-image.bin
-
-all: $(BUILD_DIR)/os-image.bin
 
 $(BUILD_DIR)/system.bin: $(BUILD_DIR)/loader.bin $(BUILD_DIR)/kernel.bin
 	cat $^ > $@
@@ -54,6 +57,7 @@ $(BUILD_DIR)/os-image.bin: $(BUILD_DIR)/boot_fat16.bin $(BUILD_DIR)/system.bin $
 	mcopy -i $@ $(BUILD_DIR)/system.bin ::LOADER.BIN
 	mcopy -i $@ $(BUILD_DIR)/user.bin ::USER.BIN
 	mcopy -i $@ $(BUILD_DIR)/hello.elf ::HELLO.ELF
+	echo "Hello, OS_EOJIN!" > $(BUILD_DIR)/hello.txt
 	mcopy -i $@ $(BUILD_DIR)/hello.txt ::HELLO.TXT
 	
 	mmd -i $@ ::TESTDIR
