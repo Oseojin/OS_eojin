@@ -105,6 +105,6 @@ $(BUILD_DIR)/%.o: $(SRC_CPU)/%.c
 	gcc -m64 -ffreestanding -mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -fno-pie -c $< -o $@
 
 clean:
-	rm -f $(BUILD_DIR)/*.bin $(BUILD_DIR)/*.o
+	rm -f $(BUILD_DIR)/*.bin $(BUILD_DIR)/*.o $(BUILD_DIR)/*.elf $(BUILD_DIR)/*.txt
 
 .PHONY: run rerun all clean
