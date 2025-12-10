@@ -556,7 +556,7 @@ void    user_input(char* input)
 
 void    main()
 {
-    kprint_at("Kernel loaded.\n", 0, 4);
+    kprint_at("Kernel loaded.\n", 0, 10);
 
     set_idt_gate(0, (uint64_t)isr0, 0x8e);    // ISR 0번(Divide by Zero) 등록
     set_idt_gate(8, (uint64_t)isr8, 0x8e);
@@ -569,13 +569,7 @@ void    main()
     // IDT 로드
     set_idt();
 
-    __asm__ volatile("int $0");
-
-    kprint("After Interrupt.\n");
-
     outb(0x20, 0x11);
-
-    kprint("outb\n");
 
     pic_remap(); // PIC 초기화 및 리매핑
 

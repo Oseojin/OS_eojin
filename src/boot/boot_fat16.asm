@@ -48,11 +48,6 @@ start:
     cmp bx, 0xaa55
     jne .no_lba
 
-    ; [DEBUG] L
-    mov ah, 0x0e
-    mov al, 'L'
-    int 0x10
-
     ; Calculate Root Dir Start LBA
     mov ax, [fat_size_16]
     xor cx, cx
@@ -114,11 +109,6 @@ start:
     mov bx, 0x7e00
 
 .load_loop:
-    ; [DEBUG] .
-    mov ah, 0x0e
-    mov al, '.'
-    int 0x10
-
     mov ax, [cluster]
     sub ax, 2
     xor cx, cx
@@ -166,10 +156,6 @@ start:
     jmp .load_loop
 
 .success:
-    ; [DEBUG] J
-    mov ah, 0x0e
-    mov al, 'J'
-    int 0x10
     jmp 0x0000:0x7e00
 
 .no_lba:
